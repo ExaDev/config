@@ -7,6 +7,7 @@ import {
   isRecord,
   isString,
   literal,
+  looseObject,
   optional,
   pair,
   type Path,
@@ -186,6 +187,28 @@ describe('strictObject', () => {
 
   it('treats a key named after an Object.prototype member as unknown', () => {
     expect(run(isSample, { a: 'x', toString: 1 }).problems).toEqual([{ path: ['toString'], message: 'unknown key' }]);
+  });
+});
+
+describe('looseObject', () => {
+  interface Sample {
+    readonly a: string;
+    readonly b?: number;
+  }
+  const isSample = looseObject<Sample>({ a: required(isString), b: optional(integer()) });
+
+  it('accepts an object with the required key, whatever other keys it has', () => {
+    expect(run(isSample, { a: 'x' }).valid).toBe(true);
+    expect(run(isSample, { a: 'x', b: 1, c: 'anything' }).valid).toBe(true);
+  });
+
+  it.each([[null], [[]], ['a']])('rejects %j as not an object', (value) => {
+    expect(run(isSample, value)).toEqual({ valid: false, problems: [{ path: [], message: 'expected an object' }] });
+  });
+
+  it('still reports a missing required key and a bad value of a known key', () => {
+    expect(run(isSample, { c: 1 })).toEqual({ valid: false, problems: [{ path: ['a'], message: 'required' }] });
+    expect(run(isSample, { a: 'x', b: 'y', c: 1 }).problems).toEqual([{ path: ['b'], message: 'expected an integer' }]);
   });
 });
 
