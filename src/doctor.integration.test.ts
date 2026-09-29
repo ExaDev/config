@@ -123,6 +123,10 @@ describe('doctor', () => {
     await expect(doctor({ cwd })).rejects.toThrow(TypeError);
   });
 
+  it.each(['export default null;\n', 'export const config = { layout: {} };\n'])('rejects a unified file that exports no configuration: %j', async (content) => {
+    await expect(doctor({ cwd: makeProject({ 'exadev.config.ts': content }) })).rejects.toThrow(TypeError);
+  });
+
   it('applies the trust policy it is given to extends', async () => {
     const cwd = makeProject({
       ...installed('shared'),
