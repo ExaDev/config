@@ -24,7 +24,7 @@ Reports the sections in exadev.config.ts that no installed or listed tool owns.
   --section <name>    Treat <name> as owned. Repeatable.
   --help              Show this message.
 
-Exit status: ${String(EXIT_CODES.clean)} when every section is owned, ${String(EXIT_CODES.unowned)} when some is not, ${String(EXIT_CODES.failed)} when the command could not run.
+Exit status: ${String(EXIT_CODES.clean)} when every section is owned (or there is no exadev.config.ts to check), ${String(EXIT_CODES.unowned)} when some is not, ${String(EXIT_CODES.failed)} when the command could not run.
 `;
 
 function messageOf(error: unknown): string {
@@ -34,23 +34,33 @@ function messageOf(error: unknown): string {
 async function runDoctor(args: readonly string[], output: CommandOutput): Promise<number> {
   const { values } = parseArgs({
     args: [...args],
-    options: { cwd: { type: 'string' }, section: { type: 'string', multiple: true } },
+    options: { cwd: { type: 'string' }, section: { type: 'string', multiple: true }, help: { type: 'boolean' } },
     allowPositionals: false,
   });
+  if (values.help === true) {
+    output.stdout(USAGE);
+
+    return EXIT_CODES.clean;
+  }
   const cwd = resolve(values.cwd ?? '.');
   const report = await doctor({ cwd, listed: values.section ?? [] });
+  if (report.file === undefined) {
+    output.stdout(`${cwd}: nothing to check, since exadev.config.ts is absent or empty there. The command does not search parent directories.\n`);
+
+    return EXIT_CODES.clean;
+  }
   if (report.unowned.length === 0) {
     return EXIT_CODES.clean;
   }
   for (const name of report.unowned) {
-    output.stderr(`${report.file ?? cwd}: section '${name}' is not owned by any installed or listed tool. Known sections: ${report.known.join(', ')}.\n`);
+    output.stderr(`${report.file}: section '${name}' is not owned by any installed or listed tool. Known sections: ${report.known.join(', ')}.\n`);
   }
 
   return EXIT_CODES.unowned;
 }
 
 /**
- * Run the `exadev-config` command with the arguments after the program name and return the exit code. A failure to run (unknown option, unloadable config) is reported on `stderr` and returns {@link EXIT_CODES}`.failed`.
+ * Run the `exadev-config` command with the arguments after the program name and return the exit code. A failure to run (missing or unknown command, unknown option, unloadable config) is reported on `stderr` and returns {@link EXIT_CODES}`.failed`.
  */
 export async function runCommand(args: readonly string[], output: CommandOutput): Promise<number> {
   try {
@@ -58,10 +68,13 @@ export async function runCommand(args: readonly string[], output: CommandOutput)
     if (command === 'doctor') {
       return await runDoctor(rest, output);
     }
-    if (command === undefined || command === '--help') {
+    if (command === '--help') {
       output.stdout(USAGE);
 
       return EXIT_CODES.clean;
+    }
+    if (command === undefined) {
+      throw new TypeError(`missing command\n\n${USAGE}`);
     }
     throw new TypeError(`unknown command '${command}'\n\n${USAGE}`);
   } catch (error) {
