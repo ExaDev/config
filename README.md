@@ -98,7 +98,7 @@ export function loadMyToolConfig(cwd: string): Promise<MyToolConfig | undefined>
 
 Notes for the tool author:
 
-- The name is both the key in the unified file and the base of the standalone file name, so it starts with a letter and contains only letters, digits, `-` and `_`. `extends` is reserved. `defineSection` throws a `TypeError` otherwise.
+- The name is both the key in the unified file and the base of the standalone file name, so it starts with a letter and contains only letters (`A-Z`, `a-z`), digits, `-` and `_`. `extends` is reserved. A literal name that breaks the rule (`'1 bad name'`, `'Foo Bar'`, `'a_b.c'`, `''`) is a compile error at `defineSection` and at `withSections` whose message quotes the name and the rule, and the type accepts exactly the names the runtime check accepts, both derived from one pair of character-set constants. Two cases are left to the runtime check, which throws a `TypeError`: a name that is not a literal (`string`), and a literal longer than about a thousand characters, which TypeScript cannot check and reports as excessively deep.
 - Under `isolatedDeclarations` an exported schema needs a written type. Write the interface by hand and annotate the schema `z.ZodType<Config, Config>` (output first, then input), as above, and use `z.exactOptional` for optional fields under `exactOptionalPropertyTypes`.
 - Use `.strict()` schemas (`z.strictObject`) so a misspelt key in a config file fails at load time as well as in the type checker.
 - To let `doctor` know which sections an installed package owns, declare them in the package's `package.json`:

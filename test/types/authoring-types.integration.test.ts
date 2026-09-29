@@ -83,7 +83,7 @@ function expectErrors(actual: readonly Finding[], expected: readonly Expected[])
 }
 
 describe('an authoring file', () => {
-  it.each(['ok-two-tools', 'ok-layout', 'ok-sections-optional', 'ok-envelope-only', 'ok-isolated-declarations'])('%s type-checks', (name) => {
+  it.each(['ok-two-tools', 'ok-layout', 'ok-sections-optional', 'ok-envelope-only', 'ok-isolated-declarations', 'ok-name-shapes', 'name-long-valid'])('%s type-checks', (name) => {
     expect(findingsIn(plain, `cases/${name}`)).toEqual([]);
   });
 
@@ -130,6 +130,26 @@ describe('an authoring file', () => {
 
   it('rejects a section named after an envelope key', () => {
     expectErrors(findingsIn(plain, 'cases/envelope-named-section'), [{ line: 5, code: 2345, message: 'a section may not be named after a key of the config envelope' }]);
+  });
+
+  it.each([
+    ['invalid-name-digit-first', '1 bad name'],
+    ['invalid-name-space', 'Foo Bar'],
+    ['invalid-name-underscore-first', '_a'],
+    ['invalid-name-empty', ''],
+    ['invalid-name-tail', 'a.b'],
+  ])('rejects the literal name in %s at defineSection, quoting the rule', (name, literal) => {
+    expectErrors(findingsIn(plain, `cases/${name}`), [
+      { line: 4, code: 2345, message: `invalid section name '${literal}': it must start with a letter and contain only letters, digits, '-' and '_'` },
+    ]);
+  });
+
+  it('rejects a union of names when any member is invalid', () => {
+    expectErrors(findingsIn(plain, 'cases/invalid-name-union'), [{ line: 6, code: 2345, message: "invalid section name 'not good'" }]);
+  });
+
+  it('rejects a descriptor with an invalid literal name at withSections', () => {
+    expectErrors(findingsIn(plain, 'cases/invalid-name-listed'), [{ line: 6, code: 2345, message: "invalid section name 'a b': it must start with a letter and contain only letters, digits, '-' and '_'" }]);
   });
 
   it('rejects two descriptors that share a name', () => {
