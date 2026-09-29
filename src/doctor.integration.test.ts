@@ -123,6 +123,18 @@ describe('doctor', () => {
     expect(await doctor({ cwd })).toMatchObject({ defined: ['inherited', 'layout'], unowned: ['inherited'] });
   });
 
+  it.each(['.mts', '.cts'])('reads a unified file with the extension %s', async (extension) => {
+    const cwd = makeProject({ [`exadev.config${extension}`]: 'export default { elint: {} };\n' });
+
+    expect(await doctor({ cwd })).toMatchObject({ file: join(cwd, `exadev.config${extension}`), unowned: ['elint'] });
+  });
+
+  it('rejects a unified file that exists under two extensions', async () => {
+    const cwd = makeProject({ 'exadev.config.ts': 'export default {};\n', 'exadev.config.cts': 'export default {};\n' });
+
+    await expect(doctor({ cwd })).rejects.toThrow('exadev.config exists under more than one extension');
+  });
+
   it('rejects a unified file that does not export an object', async () => {
     const cwd = makeProject({ 'exadev.config.ts': 'export default 5;\n' });
 

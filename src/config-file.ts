@@ -7,9 +7,14 @@ import { createExplorer, createJitiLoader, type ExplorerOptions } from 'cosmicon
 import { isRecord } from './validation';
 
 /**
- * The name of the unified config file, looked for in the directory a tool is asked about.
+ * The base name of the unified config file, `exadev.config.<extension>`, looked for in the directory a tool is asked about.
  */
-export const UNIFIED_FILE = 'exadev.config.ts';
+export const UNIFIED_BASE = 'exadev';
+
+/**
+ * The extensions a config file may have: the ones cosmiconfig-extends registers its TypeScript loader for.
+ */
+export const CONFIG_EXTENSIONS = ['.ts', '.mts', '.cts'] as const;
 
 /**
  * How config files are loaded, passed to `cosmiconfig-extends`: the authoring-import `alias`, jiti's `fsCache`, the `trust` policy for `extends` references (local paths only by default), and the `merge` that combines a file with the presets it extends (arrays replace by default).
@@ -26,10 +31,24 @@ export function assertDirectory(directory: string): void {
 }
 
 /**
- * The path of the standalone config file for the tool that owns section `name`.
+ * The base name of the standalone config file for the tool that owns section `name`: `exadev.<name>.config.<extension>`. It is namespaced because the plain `<name>.config.<extension>` is the native config file of many tools (`eslint.config.ts`, `vitest.config.ts`), which a section of the same name would otherwise read as its own.
  */
-export function standaloneFile(cwd: string, name: string): string {
-  return join(cwd, `${name}.config.ts`);
+export function standaloneBase(name: string): string {
+  return `${UNIFIED_BASE}.${name}`;
+}
+
+/**
+ * The config file `<base>.config.<extension>` in `directory`, or `undefined` when there is none. Throws when the file exists under more than one extension, since choosing one silently would hide a configuration that never takes effect.
+ */
+export function findConfigFile(directory: string, base: string): string | undefined {
+  const found = CONFIG_EXTENSIONS.map((extension) => join(directory, `${base}.config${extension}`)).filter(
+    (file) => statSync(file, { throwIfNoEntry: false })?.isFile() === true,
+  );
+  if (found.length > 1) {
+    throw new Error(`${base}.config exists under more than one extension (${found.join(', ')}); keep exactly one`);
+  }
+
+  return found[0];
 }
 
 /**
@@ -59,12 +78,9 @@ function requireDefaultExport(loader: Loader): Loader {
 }
 
 /**
- * The evaluated content of the config file at `file` after `extends` is applied, or `undefined` when the file does not exist, is empty, or has `undefined` as its default export. Throws when the file does not export a default value. Every call reads the file afresh.
+ * The evaluated content of the config file at `file` after `extends` is applied, or `undefined` when the file is empty or has `undefined` as its default export. Throws when the file does not export a default value. Every call reads the file afresh.
  */
 export async function readConfigFile(file: string, options: ConfigFileOptions): Promise<unknown> {
-  if (statSync(file, { throwIfNoEntry: false })?.isFile() !== true) {
-    return undefined;
-  }
   const checked = requireDefaultExport(createJitiLoader(options).loader);
   const explorer = createExplorer('exadev', {
     ...options,
@@ -76,7 +92,7 @@ export async function readConfigFile(file: string, options: ConfigFileOptions): 
 }
 
 /**
- * The evaluated unified config at `file`: a record, or `undefined` when the file is absent or empty. Throws when the file exports something other than an object.
+ * The evaluated unified config at `file`: a record, or `undefined` when the file is empty. Throws when the file exports something other than an object.
  */
 export async function readUnifiedFile(file: string, options: ConfigFileOptions): Promise<Readonly<Record<string, unknown>> | undefined> {
   const config = await readConfigFile(file, options);

@@ -31,35 +31,45 @@ describe('loadSection', () => {
   });
 
   it('reads a section from its standalone file', async () => {
-    const cwd = makeProject({ 'toolA.config.ts': `export default ${SECTION};\n` });
+    const cwd = makeProject({ 'exadev.toolA.config.ts': `export default ${SECTION};\n` });
 
     expect(await loadSection(toolA, { cwd })).toEqual({ include: ['src'], level: 'low' });
   });
 
   it('produces the same section from the unified file and from the standalone file', async () => {
     const fromUnified = await loadSection(toolA, { cwd: makeProject({ 'exadev.config.ts': unified("{ include: ['a', 'b'], level: 'high' }") }) });
-    const fromStandalone = await loadSection(toolA, { cwd: makeProject({ 'toolA.config.ts': "export default { include: ['a', 'b'], level: 'high' };\n" }) });
+    const fromStandalone = await loadSection(toolA, { cwd: makeProject({ 'exadev.toolA.config.ts': "export default { include: ['a', 'b'], level: 'high' };\n" }) });
 
     expect(fromUnified).toEqual({ include: ['a', 'b'], level: 'high' });
     expect(fromStandalone).toEqual(fromUnified);
   });
 
   it('ignores the sections of other tools in the unified file, and their standalone files', async () => {
-    const cwd = makeProject({ 'exadev.config.ts': unified(), 'other.config.ts': 'export default 1;\n' });
+    const cwd = makeProject({ 'exadev.config.ts': unified(), 'exadev.other.config.ts': 'export default 1;\n' });
 
     expect(await loadSection(toolA, { cwd })).toEqual({ include: ['src'], level: 'low' });
   });
 
   it('fails when the section is defined in both files, naming both', async () => {
-    const cwd = makeProject({ 'exadev.config.ts': unified(), 'toolA.config.ts': `export default ${SECTION};\n` });
+    const cwd = makeProject({ 'exadev.config.ts': unified(), 'exadev.toolA.config.ts': `export default ${SECTION};\n` });
 
     await expect(loadSection(toolA, { cwd })).rejects.toThrow(
-      new Error(`section 'toolA' is defined in both ${join(cwd, 'exadev.config.ts')} and ${join(cwd, 'toolA.config.ts')}; keep exactly one`),
+      new Error(`section 'toolA' is defined in both ${join(cwd, 'exadev.config.ts')} (directly or through extends) and ${join(cwd, 'exadev.toolA.config.ts')}; keep exactly one`),
     );
   });
 
+  it('fails when a preset of the unified file supplies a section the standalone file also defines', async () => {
+    const cwd = makeProject({
+      'preset.ts': `export default { toolA: ${SECTION} };\n`,
+      'exadev.config.ts': "export default { extends: './preset.ts' };\n",
+      'exadev.toolA.config.ts': `export default ${SECTION};\n`,
+    });
+
+    await expect(loadSection(toolA, { cwd })).rejects.toThrow(/defined in both .*exadev\.config\.ts \(directly or through extends\) and .*exadev\.toolA\.config\.ts/);
+  });
+
   it('is not a conflict when the unified file defines only other sections', async () => {
-    const cwd = makeProject({ 'exadev.config.ts': "export default { other: {} };\n", 'toolA.config.ts': `export default ${SECTION};\n` });
+    const cwd = makeProject({ 'exadev.config.ts': "export default { other: {} };\n", 'exadev.toolA.config.ts': `export default ${SECTION};\n` });
 
     expect(await loadSection(toolA, { cwd })).toEqual({ include: ['src'], level: 'low' });
   });
@@ -72,12 +82,12 @@ describe('loadSection', () => {
   it('returns undefined for an empty unified file and for a section exported as undefined', async () => {
     expect(await loadSection(toolA, { cwd: makeProject({ 'exadev.config.ts': 'export default undefined;\n' }) })).toBeUndefined();
     expect(await loadSection(toolA, { cwd: makeProject({ 'exadev.config.ts': 'export default { toolA: undefined };\n' }) })).toBeUndefined();
-    expect(await loadSection(toolA, { cwd: makeProject({ 'toolA.config.ts': 'export default undefined;\n' }) })).toBeUndefined();
+    expect(await loadSection(toolA, { cwd: makeProject({ 'exadev.toolA.config.ts': 'export default undefined;\n' }) })).toBeUndefined();
   });
 
   it('returns undefined for a file with no content', async () => {
     expect(await loadSection(toolA, { cwd: makeProject({ 'exadev.config.ts': '' }) })).toBeUndefined();
-    expect(await loadSection(toolA, { cwd: makeProject({ 'toolA.config.ts': '' }) })).toBeUndefined();
+    expect(await loadSection(toolA, { cwd: makeProject({ 'exadev.toolA.config.ts': '' }) })).toBeUndefined();
   });
 
   const NULL_EXPORT = 'the default export is null; export an object, or undefined for an empty config';
@@ -87,8 +97,8 @@ describe('loadSection', () => {
     ['exadev.config.ts', 'export default null;\n', NULL_EXPORT],
     ['exadev.config.ts', 'export const config = { toolA: { include: [] } };\n', NO_DEFAULT],
     ['exadev.config.ts', 'export {};\n', NO_DEFAULT],
-    ['toolA.config.ts', 'export default null;\n', NULL_EXPORT],
-    ['toolA.config.ts', 'export const config = { include: [] };\n', NO_DEFAULT],
+    ['exadev.toolA.config.ts', 'export default null;\n', NULL_EXPORT],
+    ['exadev.toolA.config.ts', 'export const config = { include: [] };\n', NO_DEFAULT],
   ])('fails on %s that exports no configuration: %j', async (file, content, message) => {
     const cwd = makeProject({ [file]: content });
 
@@ -123,6 +133,50 @@ describe('loadSection', () => {
     expect(await loadSection(toolA, { cwd })).toHaveProperty('level', 'low');
   });
 
+  describe('file names', () => {
+    const eslintSection = defineSection('eslint', z.strictObject({ strict: z.boolean() }));
+
+    it('does not read the native config file of a tool that shares the section name', async () => {
+      const native = makeProject({ 'eslint.config.ts': 'export default [{ rules: {} }];\n', 'vitest.config.ts': 'export default {};\n' });
+
+      expect(await loadSection(eslintSection, { cwd: native })).toBeUndefined();
+
+      const both = makeProject({ 'eslint.config.ts': 'export default [{ rules: {} }];\n', 'exadev.config.ts': 'export default { eslint: { strict: true } };\n' });
+
+      expect(await loadSection(eslintSection, { cwd: both })).toEqual({ strict: true });
+    });
+
+    it.each(['.mts', '.cts'])('reads the unified file and a standalone file with the extension %s', async (extension) => {
+      const unifiedProject = makeProject({ [`exadev.config${extension}`]: unified() });
+      const standaloneProject = makeProject({ [`exadev.toolA.config${extension}`]: `export default ${SECTION};\n` });
+
+      expect(await loadSection(toolA, { cwd: unifiedProject })).toEqual({ include: ['src'], level: 'low' });
+      expect(await loadSection(toolA, { cwd: standaloneProject })).toEqual({ include: ['src'], level: 'low' });
+    });
+
+    it('fails when the unified file exists under two extensions, naming both', async () => {
+      const cwd = makeProject({ 'exadev.config.ts': unified(), 'exadev.config.mts': unified() });
+
+      await expect(loadSection(toolA, { cwd })).rejects.toThrow(
+        new Error(`exadev.config exists under more than one extension (${join(cwd, 'exadev.config.ts')}, ${join(cwd, 'exadev.config.mts')}); keep exactly one`),
+      );
+    });
+
+    it('fails when a standalone file exists under two extensions, naming both', async () => {
+      const cwd = makeProject({ 'exadev.toolA.config.ts': `export default ${SECTION};\n`, 'exadev.toolA.config.cts': `export default ${SECTION};\n` });
+
+      await expect(loadSection(toolA, { cwd })).rejects.toThrow(
+        new Error(`exadev.toolA.config exists under more than one extension (${join(cwd, 'exadev.toolA.config.ts')}, ${join(cwd, 'exadev.toolA.config.cts')}); keep exactly one`),
+      );
+    });
+
+    it('fails when the section is defined in files of different extensions', async () => {
+      const cwd = makeProject({ 'exadev.config.mts': unified(), 'exadev.toolA.config.cts': `export default ${SECTION};\n` });
+
+      await expect(loadSection(toolA, { cwd })).rejects.toThrow(new Error(`section 'toolA' is defined in both ${join(cwd, 'exadev.config.mts')} (directly or through extends) and ${join(cwd, 'exadev.toolA.config.cts')}; keep exactly one`));
+    });
+  });
+
   describe('validation', () => {
     it('rejects an invalid section in the unified file with the file and the path of every problem', async () => {
       const cwd = makeProject({ 'exadev.config.ts': unified("{ include: 'src', bogus: 1 }") });
@@ -134,9 +188,9 @@ describe('loadSection', () => {
     });
 
     it('rejects an invalid standalone section with the standalone file', async () => {
-      const cwd = makeProject({ 'toolA.config.ts': "export default { include: 1 };\n" });
+      const cwd = makeProject({ 'exadev.toolA.config.ts': "export default { include: 1 };\n" });
 
-      await expect(loadSection(toolA, { cwd })).rejects.toThrow(`invalid 'toolA' section in ${join(cwd, 'toolA.config.ts')}:`);
+      await expect(loadSection(toolA, { cwd })).rejects.toThrow(`invalid 'toolA' section in ${join(cwd, 'exadev.toolA.config.ts')}:`);
     });
 
     it('rejects a unified file that does not export an object', async () => {
@@ -160,7 +214,7 @@ describe('loadSection', () => {
       const expected = { groups: [{ name: 'core', rank: 0 }], naming: { scope: '@acme' } };
 
       expect(await loadSection(layoutSection, { cwd: makeProject({ 'exadev.config.ts': `export default { layout: ${layout} };\n` }) })).toEqual(expected);
-      expect(await loadSection(layoutSection, { cwd: makeProject({ 'layout.config.ts': `export default ${layout};\n` }) })).toEqual(expected);
+      expect(await loadSection(layoutSection, { cwd: makeProject({ 'exadev.layout.config.ts': `export default ${layout};\n` }) })).toEqual(expected);
     });
   });
 
@@ -177,7 +231,7 @@ describe('loadSection', () => {
     it('applies extends inside a standalone file', async () => {
       const cwd = makeProject({
         'base.ts': "export default { include: ['base'], level: 'high' };\n",
-        'toolA.config.ts': "export default { extends: './base.ts', level: 'low' };\n",
+        'exadev.toolA.config.ts': "export default { extends: './base.ts', level: 'low' };\n",
       });
 
       expect(await loadSection(toolA, { cwd })).toEqual({ include: ['base'], level: 'low' });
