@@ -16,6 +16,13 @@ const toolAConfigSchema: z.ZodType<ToolAConfig, ToolAConfig> = z.strictObject({
 const toolA: Section<'toolA', z.ZodType<ToolAConfig, ToolAConfig>> = defineSection('toolA', toolAConfigSchema);
 const toolB = defineSection('toolB', z.strictObject({ rules: z.record(z.string(), z.string()) }));
 
+/**
+ * The same string with its literal type widened, so a call the compiler refuses for the literal reaches the runtime check.
+ */
+function widened(name: string): string {
+  return name;
+}
+
 describe('defineSection', () => {
   it('pairs the name with the schema it was given', () => {
     expect(toolA.name).toBe('toolA');
@@ -40,7 +47,7 @@ describe('defineSection', () => {
   );
 
   it('rejects the name of an envelope key', () => {
-    expect(() => defineSection('extends', toolAConfigSchema)).toThrow(new TypeError("invalid section name 'extends': it is a key of the config envelope"));
+    expect(() => defineSection(widened('extends'), toolAConfigSchema)).toThrow(new TypeError("invalid section name 'extends': it is a key of the config envelope"));
   });
 });
 
@@ -58,7 +65,12 @@ describe('withSections', () => {
   });
 
   it('rejects a section listed twice, naming it', () => {
-    expect(() => withSections(toolA, toolB, defineSection('toolA', toolAConfigSchema))).toThrow(new TypeError("section 'toolA' is listed more than once"));
+    // Called through Reflect.apply because the compiler already refuses this call; the runtime check is for callers it does not protect.
+    const listed: readonly Section[] = [toolA, toolB, defineSection('toolA', toolAConfigSchema)];
+
+    expect(() => {
+      Reflect.apply(withSections, undefined, listed);
+    }).toThrow(new TypeError("section 'toolA' is listed more than once"));
   });
 
   it('types the config from the listed descriptors', () => {

@@ -120,7 +120,20 @@ describe('an authoring file', () => {
   });
 
   it('rejects listing no descriptors at all', () => {
-    expectErrors(findingsIn(plain, 'cases/empty-map-with-sections'), [{ line: 3, code: 2555, message: 'Expected at least 1 arguments' }]);
+    expectErrors(findingsIn(plain, 'cases/empty-map-with-sections'), [{ line: 3, code: 2345, message: 'list at least one section' }]);
+  });
+
+  it('rejects a descriptor whose name is not a literal, which would switch off the unknown-key check for every section', () => {
+    expectErrors(findingsIn(plain, 'cases/wide-name-descriptor'), [{ line: 6, code: 2345, message: 'a listed section needs a literal name type' }]);
+    expectErrors(findingsIn(plain, 'cases/bare-section-descriptor'), [{ line: 6, code: 2345, message: 'a listed section needs a literal name type' }]);
+  });
+
+  it('rejects a section named after an envelope key', () => {
+    expectErrors(findingsIn(plain, 'cases/envelope-named-section'), [{ line: 5, code: 2345, message: 'a section may not be named after a key of the config envelope' }]);
+  });
+
+  it('rejects two descriptors that share a name', () => {
+    expectErrors(findingsIn(plain, 'cases/duplicate-section-name'), [{ line: 6, code: 2345, message: 'a section name may be listed only once' }]);
   });
 
   it('reports a tool whose package is not installed as a module that cannot be found', () => {
