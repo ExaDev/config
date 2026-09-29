@@ -118,7 +118,7 @@ Notes for the tool author:
 - `isolatedGroups` lists pairs of groups that may not depend on each other in either direction.
 - `naming` gives the `scope` and `separator` of the package name convention.
 
-The schema rejects an unknown key at every level and checks the rules that relate one part of the layout to another: group names are unique, a rank pattern compiles as a regular expression, and an isolated pair names two different declared groups. Per-rule policy (allow lists, required files and scripts) is not part of the layout; it belongs to the section of the tool that owns the rule.
+The schema rejects an unknown key at every level and checks the rules that relate one part of the layout to another: group names are unique, a rank pattern compiles as a regular expression, and an isolated pair names two different declared groups. Messages name the path and the rule and never quote a value from the config. A key written with the value `undefined` is rejected, since the type does not allow it under `exactOptionalPropertyTypes`; `@exadev/eslint-config`'s own reader accepts it. The relational rules run once the shape is valid, so a shape error hides a duplicate group name until it is fixed. Per-rule policy (allow lists, required files and scripts) is not part of the layout; it belongs to the section of the tool that owns the rule.
 
 ## Finding sections nobody reads
 

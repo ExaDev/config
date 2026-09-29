@@ -11,7 +11,7 @@ export type Path = readonly (string | number)[];
 export type Report = (path: Path, message: string) => void;
 
 /**
- * A type guard that also explains itself. It reports every problem it finds, without stopping at the first, and returns `true` exactly when it reported none.
+ * A type guard that also explains itself. It reports every problem it finds, without stopping at the first, and returns `true` exactly when it reported none. A guard that relates parts of a value to one another may inspect them only once each part is valid, so it can report fewer problems than the value has.
  */
 export type Check<T> = (value: unknown, path: Path, report: Report) => value is T;
 
