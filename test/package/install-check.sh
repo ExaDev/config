@@ -7,11 +7,13 @@ pack_dir=$1
 cosmiconfig_major=$2
 scratch=$3
 here=$(cd "$(dirname "$0")" && pwd)
+# The zod the repository itself tests with, so the consumer check does not drift with zod releases.
+zod_version=$(node -p "require(process.argv[1]).devDependencies.zod" "$here/../../package.json")
 
 mkdir -p "$scratch"
 cd "$scratch"
 npm init -y > /dev/null
-npm install "$pack_dir"/*.tgz "cosmiconfig@$cosmiconfig_major" zod
+npm install "$pack_dir"/*.tgz "cosmiconfig@$cosmiconfig_major" "zod@$zod_version"
 
 cp "$here/check.mjs" "$here/check.cjs" .
 # The file is evaluated, not type-checked: it imports the installed package as an authoring file does, and defines a section no tool owns.
