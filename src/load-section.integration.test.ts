@@ -204,7 +204,7 @@ describe('loadSection', () => {
     it('validates through a Standard Schema that is not zod', async () => {
       const cwd = makeProject({ 'exadev.config.ts': "export default { layout: { groups: [{ name: 'core' }, { name: 'core' }] } };\n" });
 
-      await expect(loadSection(layoutSection, { cwd })).rejects.toThrow("groups.1.name: group 'core' is declared more than once");
+      await expect(loadSection(layoutSection, { cwd })).rejects.toThrow("groups.1.name: the group name is declared more than once");
     });
   });
 

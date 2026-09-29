@@ -201,26 +201,26 @@ function isCoherent(layout: LayoutConfig, path: Path, report: Report): boolean {
   const declared = new Set<string>();
   layout.groups.forEach((group, index) => {
     if (declared.has(group.name)) {
-      report([...path, 'groups', index, 'name'], `group '${group.name}' is declared more than once`);
+      report([...path, 'groups', index, 'name'], 'the group name is declared more than once');
       coherent = false;
     }
     declared.add(group.name);
   });
   layout.nameRanks?.forEach((rule, index) => {
     if (!isValidRegularExpression(rule.pattern)) {
-      report([...path, 'nameRanks', index, 'pattern'], `'${rule.pattern}' is not a valid regular expression`);
+      report([...path, 'nameRanks', index, 'pattern'], 'not a valid regular expression');
       coherent = false;
     }
   });
   layout.isolatedGroups?.forEach((groups, index) => {
     groups.forEach((name, position) => {
       if (!declared.has(name)) {
-        report([...path, 'isolatedGroups', index, position], `'${name}' is not a declared group`);
+        report([...path, 'isolatedGroups', index, position], 'not a declared group');
         coherent = false;
       }
     });
     if (groups[0] === groups[1]) {
-      report([...path, 'isolatedGroups', index], `a group cannot be isolated from itself ('${groups[0]}')`);
+      report([...path, 'isolatedGroups', index], 'a group cannot be isolated from itself');
       coherent = false;
     }
   });
@@ -233,6 +233,8 @@ const isLayoutConfig: Check<LayoutConfig> = (value, path, report): value is Layo
 
 /**
  * The Standard Schema for {@link LayoutConfig}. It rejects unknown keys at every level, and checks the rules that relate one part of the layout to another. It applies no defaults and returns a valid value as it is.
+ *
+ * Three decisions are deliberate. A key present with the value `undefined` is rejected, as the type says under `exactOptionalPropertyTypes`, so `undefined` is never a way to omit a key; the reader in `@exadev/eslint-config` accepts it, and this is the one place the two differ. The relational rules run only on a layout whose shape is valid, so a shape error hides a duplicate group name until it is fixed. Messages name the path and the rule but never quote a value from the config.
  */
 export const layoutSchema: StandardSchemaV1<LayoutConfig, LayoutConfig> = standardSchema('@exadev/config', isLayoutConfig);
 

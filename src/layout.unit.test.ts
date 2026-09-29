@@ -174,14 +174,14 @@ describe('layoutSchema', () => {
 
     it('rejects a member that is not a declared group, at its position', async () => {
       expect(await problemsOf({ groups, isolatedGroups: [['a', 'missing'], ['other', 'b']] })).toEqual([
-        { path: ['isolatedGroups', 0, 1], message: "'missing' is not a declared group" },
-        { path: ['isolatedGroups', 1, 0], message: "'other' is not a declared group" },
+        { path: ['isolatedGroups', 0, 1], message: 'not a declared group' },
+        { path: ['isolatedGroups', 1, 0], message: 'not a declared group' },
       ]);
     });
 
     it('rejects a group isolated from itself', async () => {
       expect(await problemsOf({ groups, isolatedGroups: [['a', 'a']] })).toEqual([
-        { path: ['isolatedGroups', 0], message: "a group cannot be isolated from itself ('a')" },
+        { path: ['isolatedGroups', 0], message: 'a group cannot be isolated from itself' },
       ]);
     });
 
@@ -196,15 +196,15 @@ describe('layoutSchema', () => {
 
   it('rejects a group name declared more than once, at every declaration after the first', async () => {
     expect(await problemsOf({ groups: [{ name: 'a' }, { name: 'a' }, { name: 'a' }] })).toEqual([
-      { path: ['groups', 1, 'name'], message: "group 'a' is declared more than once" },
-      { path: ['groups', 2, 'name'], message: "group 'a' is declared more than once" },
+      { path: ['groups', 1, 'name'], message: 'the group name is declared more than once' },
+      { path: ['groups', 2, 'name'], message: 'the group name is declared more than once' },
     ]);
   });
 
   it('rejects a rank pattern that is not a regular expression under the u flag', async () => {
     expect(await problemsOf({ groups: [], nameRanks: [{ pattern: '^ok$', rank: 1 }, { pattern: '(', rank: 1 }, { pattern: '\\-', rank: 1 }] })).toEqual([
-      { path: ['nameRanks', 1, 'pattern'], message: "'(' is not a valid regular expression" },
-      { path: ['nameRanks', 2, 'pattern'], message: "'\\-' is not a valid regular expression" },
+      { path: ['nameRanks', 1, 'pattern'], message: 'not a valid regular expression' },
+      { path: ['nameRanks', 2, 'pattern'], message: 'not a valid regular expression' },
     ]);
   });
 
