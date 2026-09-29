@@ -1,3 +1,4 @@
+export { ConfigValidationError, type ConfigValidationIssue } from 'cosmiconfig-extends';
 export type { ConfigFileOptions } from './config-file';
 export { doctor, type DoctorOptions, type DoctorReport, MANIFEST_FIELD } from './doctor';
 export {

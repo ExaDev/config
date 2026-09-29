@@ -1,7 +1,7 @@
 // Runs in a scratch project that has the packed tarball, cosmiconfig and zod installed. It loads sections through the installed package as an ES module.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { defineSection, doctor, layoutSection, loadSection } from '@exadev/config';
+import { ConfigValidationError, defineSection, doctor, layoutSection, loadSection } from '@exadev/config';
 import { z } from 'zod';
 
 const toolA = defineSection('toolA', z.strictObject({ include: z.array(z.string()) }));
@@ -27,3 +27,4 @@ assert.equal(run(['doctor', '--section', 'toolA']), 1);
 assert.equal(run(['unknown']), 2);
 assert.equal(run([]), 2);
 assert.equal(run(['doctor', '--help']), 0);
+assert.equal(typeof ConfigValidationError, 'function');
