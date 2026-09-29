@@ -75,6 +75,26 @@ describe('loadSection', () => {
     expect(await loadSection(toolA, { cwd: makeProject({ 'toolA.config.ts': 'export default undefined;\n' }) })).toBeUndefined();
   });
 
+  it('returns undefined for a file with no content', async () => {
+    expect(await loadSection(toolA, { cwd: makeProject({ 'exadev.config.ts': '' }) })).toBeUndefined();
+    expect(await loadSection(toolA, { cwd: makeProject({ 'toolA.config.ts': '' }) })).toBeUndefined();
+  });
+
+  const NULL_EXPORT = 'the default export is null; export an object, or undefined for an empty config';
+  const NO_DEFAULT = 'the file has no default export; write the config as `export default`';
+
+  it.each([
+    ['exadev.config.ts', 'export default null;\n', NULL_EXPORT],
+    ['exadev.config.ts', 'export const config = { toolA: { include: [] } };\n', NO_DEFAULT],
+    ['exadev.config.ts', 'export {};\n', NO_DEFAULT],
+    ['toolA.config.ts', 'export default null;\n', NULL_EXPORT],
+    ['toolA.config.ts', 'export const config = { include: [] };\n', NO_DEFAULT],
+  ])('fails on %s that exports no configuration: %j', async (file, content, message) => {
+    const cwd = makeProject({ [file]: content });
+
+    await expect(loadSection(toolA, { cwd })).rejects.toMatchObject({ name: 'TypeError', message: `${join(cwd, file)}: ${message}` });
+  });
+
   it('does not take a section from the prototype of the unified config', async () => {
     const constructorSection = defineSection('constructor', z.unknown());
     const cwd = makeProject({ 'exadev.config.ts': 'export default {};\n' });
