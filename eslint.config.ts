@@ -12,6 +12,8 @@ const config: Config[] = defineConfig(
       '.stryker-tmp',
       // Fixtures the type-level tests compile on purpose to observe their errors; the project's own typecheck and lint must not see them.
       'test/types/fixtures',
+      // Plain Node scripts that run in a scratch project against the installed tarball, outside this project's TypeScript program.
+      'test/package',
     ],
   },
   {
