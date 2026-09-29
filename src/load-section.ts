@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { validateStandard } from 'cosmiconfig-extends';
 
-import { type ConfigFileOptions, readConfigFile, readUnifiedFile, standaloneFile, UNIFIED_FILE } from './config-file';
+import { assertDirectory, type ConfigFileOptions, readConfigFile, readUnifiedFile, standaloneFile, UNIFIED_FILE } from './config-file';
 import type { Section } from './section';
 
 /**
@@ -21,12 +21,13 @@ export interface LoadSectionOptions extends ConfigFileOptions {
  *
  * The section comes from `exadev.config.ts` (its key `section.name`) or from `<section.name>.config.ts`, both in `cwd`; neither is searched for in a parent directory. Both files are evaluated with `extends` applied. A section defined in both files throws an error naming both, since choosing one silently would hide a configuration that never takes effect. The result is the schema's output, and is `undefined` when neither file defines the section.
  *
- * Throws `ConfigValidationError` when the section fails the schema, and a `TypeError` when the unified file exports something other than an object.
+ * Throws `ConfigValidationError` when the section fails the schema, a `TypeError` when the unified file exports something other than an object, and an `Error` when `cwd` is not an existing directory.
  */
 export async function loadSection<Name extends string, Schema extends StandardSchemaV1>(
   section: Section<Name, Schema>,
   options: LoadSectionOptions,
 ): Promise<StandardSchemaV1.InferOutput<Schema> | undefined> {
+  assertDirectory(options.cwd);
   const unifiedFile = join(options.cwd, UNIFIED_FILE);
   const standalone = standaloneFile(options.cwd, section.name);
   const unified = await readUnifiedFile(unifiedFile, options);
