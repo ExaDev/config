@@ -1,4 +1,4 @@
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 import { ConfigValidationError, type Merge } from 'cosmiconfig-extends';
 import { describe, expect, it } from 'vitest';
@@ -273,7 +273,8 @@ describe('loadSection', () => {
   describe('authoring files', () => {
     it('loads a file that imports @exadev/config through the alias, as an authoring file does', async () => {
       const cwd = makeProject({
-        'shim/index.ts': `export * from ${JSON.stringify(resolve(import.meta.dirname, 'index.ts'))};\n`,
+        // A stand-in that does not evaluate this package's source a second time: coverage would attribute that copy to the same files and hide the lines the tests do cover. The test is about where the import resolves to.
+        'shim/index.ts': ['export const layoutSection = { name: \'layout\', schema: {} };', 'export const withSections = () => (config: unknown) => config;', ''].join('\n'),
         'node_modules/@acme/tool-a/index.js': "export const toolA = { name: 'toolA', schema: {} };\n",
         'node_modules/@acme/tool-a/package.json': JSON.stringify({ name: '@acme/tool-a', type: 'module', main: 'index.js' }),
         'exadev.config.ts': [
