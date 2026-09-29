@@ -134,7 +134,7 @@ A key is owned when it is `layout`, when a dependency of the project's `package.
 exadev-config doctor [--cwd <directory>] [--section <name>]...
 ```
 
-It exits 0 when every section is owned, 1 when some is not, and 2 when it could not run.
+It exits 0 when every section is owned, 1 when some is not, and 2 when it could not run, which includes a missing command, a `--cwd` that is not a directory and a config that fails to load. A directory with no `exadev.config.ts` (or an empty one) is not searched upward: the command says there is nothing to check and exits 0, so run it where the file is. `exadev-config --help` and `exadev-config doctor --help` print the usage.
 
 ## Development
 

@@ -25,3 +25,5 @@ const run = (args) => {
 assert.equal(run(['doctor', '--section', 'toolA', '--section', 'typo']), 0);
 assert.equal(run(['doctor', '--section', 'toolA']), 1);
 assert.equal(run(['unknown']), 2);
+assert.equal(run([]), 2);
+assert.equal(run(['doctor', '--help']), 0);

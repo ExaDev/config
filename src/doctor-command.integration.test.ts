@@ -28,12 +28,20 @@ async function run(...args: readonly string[]): Promise<Run> {
 }
 
 describe('runCommand', () => {
-  it.each([[[]], [['--help']]])('prints the usage and succeeds for %j', async (args) => {
+  it.each([[['--help']], [['doctor', '--help']]])('prints the usage and succeeds for %j', async (args) => {
     const { code, stdout, stderr } = await run(...args);
 
     expect(code).toBe(EXIT_CODES.clean);
     expect(stdout).toContain('Usage: exadev-config doctor [--cwd <directory>] [--section <name>]...');
     expect(stderr).toBe('');
+  });
+
+  it('fails on a missing command, printing the usage with the error', async () => {
+    const { code, stdout, stderr } = await run();
+
+    expect(code).toBe(EXIT_CODES.failed);
+    expect(stdout).toBe('');
+    expect(stderr).toMatch(/^missing command\n\nUsage: exadev-config doctor/);
   });
 
   it('fails on an unknown command, printing the usage with the error', async () => {
@@ -49,6 +57,15 @@ describe('runCommand', () => {
       const cwd = makeProject({ 'exadev.config.ts': 'export default { layout: {} };\n' });
 
       expect(await run('doctor', '--cwd', cwd)).toEqual({ code: EXIT_CODES.clean, stdout: '', stderr: '' });
+    });
+
+    it.each([[{}], [{ 'exadev.config.ts': 'export default undefined;\n' }]])('says there is nothing to check, and succeeds, when there is no unified config: %j', async (files) => {
+      const cwd = makeProject(files);
+      const { code, stdout, stderr } = await run('doctor', '--cwd', cwd);
+
+      expect(code).toBe(EXIT_CODES.clean);
+      expect(stdout).toBe(`${cwd}: nothing to check, since exadev.config.ts is absent or empty there. The command does not search parent directories.\n`);
+      expect(stderr).toBe('');
     });
 
     it('reports each unowned section on stderr with the known ones, and exits 1', async () => {
