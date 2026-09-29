@@ -143,11 +143,7 @@ export function pair<T>(item: Check<T>): Check<readonly [T, T]> {
   };
 }
 
-/**
- * Accepts a plain object with exactly the keys of `shape`: a key outside it is reported as unknown, and a required key that is absent is reported as missing.
- */
-export function strictObject<T extends object>(shape: Readonly<Shape<T>>): Check<T>;
-export function strictObject(shape: Readonly<Record<string, Field<unknown, boolean>>>): Check<object> {
+function objectOf(shape: Readonly<Record<string, Field<unknown, boolean>>>, rejectUnknownKeys: boolean): Check<object> {
   return (value, path, report): value is object => {
     if (!isRecord(value)) {
       report(path, 'expected an object');
@@ -155,10 +151,12 @@ export function strictObject(shape: Readonly<Record<string, Field<unknown, boole
       return false;
     }
     let valid = true;
-    for (const key of Object.keys(value)) {
-      if (!Object.hasOwn(shape, key)) {
-        report([...path, key], 'unknown key');
-        valid = false;
+    if (rejectUnknownKeys) {
+      for (const key of Object.keys(value)) {
+        if (!Object.hasOwn(shape, key)) {
+          report([...path, key], 'unknown key');
+          valid = false;
+        }
       }
     }
     for (const [key, field] of Object.entries(shape)) {
@@ -172,6 +170,22 @@ export function strictObject(shape: Readonly<Record<string, Field<unknown, boole
 
     return valid;
   };
+}
+
+/**
+ * Accepts a plain object with exactly the keys of `shape`: a key outside it is reported as unknown, and a required key that is absent is reported as missing.
+ */
+export function strictObject<T extends object>(shape: Readonly<Shape<T>>): Check<T>;
+export function strictObject(shape: Readonly<Record<string, Field<unknown, boolean>>>): Check<object> {
+  return objectOf(shape, true);
+}
+
+/**
+ * Accepts a plain object that has the keys of `shape` and checks them, but ignores any other key. It is for a document that other parties extend, where a key this version does not know about is not an error.
+ */
+export function looseObject<T extends object>(shape: Readonly<Shape<T>>): Check<T>;
+export function looseObject(shape: Readonly<Record<string, Field<unknown, boolean>>>): Check<object> {
+  return objectOf(shape, false);
 }
 
 /**

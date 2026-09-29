@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 
 import { assertDirectory, type ConfigFileOptions, findConfigFile, readUnifiedFile, UNIFIED_BASE } from './config-file';
 import { layoutSection } from './layout';
-import { array, type Check, isRecord, isString, required, strictObject } from './validation';
+import { array, type Check, isRecord, isString, looseObject, required } from './validation';
 
 /**
  * The `package.json` field through which a tool package declares the section names it owns: `"exadevConfig": { "sections": ["eslint"] }`. It is how `doctor` learns which sections an installed tool reads, without importing the tool.
@@ -14,7 +14,8 @@ interface Manifest {
   readonly sections: readonly string[];
 }
 
-const isManifest: Check<Manifest> = strictObject<Manifest>({ sections: required(array(isString)) });
+// Loose, not strict: a future version of this package may add a key that an older doctor must not reject in every consumer that installs the tool.
+const isManifest: Check<Manifest> = looseObject<Manifest>({ sections: required(array(isString)) });
 
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
 
@@ -87,7 +88,7 @@ function dependencyNames(packageJson: unknown): readonly string[] {
   });
 }
 
-function declaredSections(dependency: string, packageJson: unknown): readonly string[] {
+function declaredSections(owner: string, packageJson: unknown): readonly string[] {
   if (!isRecord(packageJson) || !Object.hasOwn(packageJson, MANIFEST_FIELD)) {
     return [];
   }
@@ -96,14 +97,14 @@ function declaredSections(dependency: string, packageJson: unknown): readonly st
   if (!isManifest(manifest, [], (path, message) => {
     problems.push(`${path.join('.') || '(root)'}: ${message}`);
   })) {
-    throw new TypeError(`invalid '${MANIFEST_FIELD}' in the package.json of '${dependency}':\n${problems.map((problem) => `  ${problem}`).join('\n')}`);
+    throw new TypeError(`invalid '${MANIFEST_FIELD}' in ${owner}:\n${problems.map((problem) => `  ${problem}`).join('\n')}`);
   }
 
   return manifest.sections;
 }
 
 /**
- * The section names the packages installed for the project in `cwd` declare through {@link MANIFEST_FIELD}. A dependency that is not installed, or declares none, contributes nothing.
+ * The section names that the project in `cwd` and the packages installed for it declare through {@link MANIFEST_FIELD}; the project's own declaration is how a tool repository owns the section it dogfoods. A dependency that is not installed, or declares none, contributes nothing.
  */
 function installedSections(cwd: string): readonly string[] {
   const projectFile = join(cwd, 'package.json');
@@ -111,7 +112,12 @@ function installedSections(cwd: string): readonly string[] {
     return [];
   }
 
-  return dependencyNames(readJson(projectFile)).flatMap((name) => declaredSections(name, findInstalledManifest(cwd, name)));
+  const project = readJson(projectFile);
+
+  return [
+    ...declaredSections("the project's package.json", project),
+    ...dependencyNames(project).flatMap((name) => declaredSections(`the package.json of '${name}'`, findInstalledManifest(cwd, name))),
+  ];
 }
 
 /**

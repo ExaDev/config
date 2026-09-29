@@ -157,11 +157,34 @@ describe('doctor', () => {
     expect((await doctor({ cwd, trust: () => true })).defined).toEqual(['fromShared']);
   });
 
+  it('owns a section the project itself declares, as a tool repository does for the section it dogfoods', async () => {
+    const cwd = makeProject(project({ name: 'tool-a', ...declares('toolA') }, 'export default { toolA: {}, elint: {} };\n'));
+
+    const report = await doctor({ cwd });
+
+    expect(report.unowned).toEqual(['elint']);
+    expect(report.known).toEqual(['layout', 'toolA']);
+  });
+
+  it('names the project when its own manifest is malformed', async () => {
+    const cwd = makeProject(project({ [MANIFEST_FIELD]: {} }));
+
+    await expect(doctor({ cwd })).rejects.toThrow(new TypeError(`invalid '${MANIFEST_FIELD}' in the project's package.json:\n  sections: required`));
+  });
+
+  it('ignores a key of the manifest that it does not know, so a later manifest version does not break an older doctor', async () => {
+    const cwd = makeProject({
+      ...project({ dependencies: { 'tool-a': '1' } }, 'export default { toolA: {} };\n'),
+      ...installed('tool-a', { [MANIFEST_FIELD]: { sections: ['toolA'], version: 2 } }),
+    });
+
+    expect((await doctor({ cwd })).unowned).toEqual([]);
+  });
+
   describe('a malformed manifest', () => {
     it.each([
       ['a string', 'sections', '(root): expected an object'],
       ['no sections key', {}, 'sections: required'],
-      ['an unknown key', { sections: [], other: 1 }, 'other: unknown key'],
       ['a non-string section', { sections: ['a', 2] }, 'sections.1: expected a string'],
     ])('with %s is an error naming the package and the problem', async (_name, manifest, problem) => {
       const cwd = makeProject({ ...project({ dependencies: { 'tool-a': '1' } }), ...installed('tool-a', { [MANIFEST_FIELD]: manifest }) });

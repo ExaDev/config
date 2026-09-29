@@ -128,7 +128,7 @@ const report = await doctor({ cwd: process.cwd(), listed: ['myTool'] });
 // report.unowned lists the keys of exadev.config.ts that no installed or listed tool owns.
 ```
 
-A key is owned when it is `layout`, when a dependency of the project's `package.json` declares it in its `exadevConfig.sections`, or when it appears in `listed`. A dependency is looked for in the `node_modules` directories from `cwd` upwards. The command wraps the same function:
+A key is owned when it is `layout`, when a dependency of the project's `package.json` declares it in its `exadevConfig.sections`, or when the project's own `package.json` declares it (a tool repository dogfooding its section), or when it appears in `listed`. Keys of `exadevConfig` other than `sections` are ignored, so a later manifest version does not break an older `doctor`. A dependency is looked for in the `node_modules` directories from `cwd` upwards. The command wraps the same function:
 
 ```sh
 exadev-config doctor [--cwd <directory>] [--section <name>]...
