@@ -4,6 +4,7 @@ import {
   array,
   type Check,
   integer,
+  isObject,
   isRecord,
   isString,
   literal,
@@ -14,6 +15,7 @@ import {
   required,
   standardSchema,
   strictObject,
+  validated,
 } from './validation';
 
 const NEGATIVE = -1;
@@ -234,5 +236,34 @@ describe('standardSchema', () => {
         { path: [2], message: 'expected a string' },
       ],
     });
+  });
+});
+
+describe('isObject', () => {
+  it('accepts any object whatever its properties', () => {
+    expect(run(isObject, {}).valid).toBe(true);
+    expect(run(isObject, { anything: 1 }).valid).toBe(true);
+  });
+
+  it.each([[null], [[]], ['a'], [1], [undefined]])('rejects %j as not an object', (value) => {
+    expect(run(isObject, value)).toEqual({ valid: false, problems: [{ path: [], message: 'expected an object' }] });
+  });
+});
+
+describe('validated', () => {
+  const isSample = strictObject<{ readonly a: string; readonly b: string }>({ a: required(isString), b: required(isString) });
+
+  it('returns the value it was given when the check accepts it', () => {
+    const value = { a: 'x', b: 'y' };
+
+    expect(validated(isSample, value, 'the sample')).toBe(value);
+  });
+
+  it('throws a TypeError naming the subject and listing each problem with its path on its own line', () => {
+    expect(() => validated(isSample, { a: 1, b: 2 }, 'the sample')).toThrow(new TypeError('the sample is invalid:\n  a: expected a string\n  b: expected a string'));
+  });
+
+  it('names the value itself as (root)', () => {
+    expect(() => validated(isSample, 'text', 'the sample')).toThrow(new TypeError('the sample is invalid:\n  (root): expected an object'));
   });
 });

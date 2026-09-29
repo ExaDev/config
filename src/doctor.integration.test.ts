@@ -14,7 +14,8 @@ function project(dependencies: Record<string, unknown>, config = 'export default
   return { 'package.json': JSON.stringify(dependencies), 'exadev.config.ts': config };
 }
 
-const declares = (...sections: readonly string[]): Record<string, unknown> => ({ [MANIFEST_FIELD]: { sections } });
+// The field name is written out, not taken from MANIFEST_FIELD, so that a change to the constant is a change these tests see.
+const declares = (...sections: readonly string[]): Record<string, unknown> => ({ exadevConfig: { sections } });
 
 describe('doctor', () => {
   it('reports nothing for a directory with no unified config, and still lists the built-in section', async () => {
@@ -97,9 +98,32 @@ describe('doctor', () => {
     expect(await doctor({ cwd })).toMatchObject({ unowned: ['x'], known: ['layout'] });
   });
 
-  it('ignores a package.json whose dependency fields are not objects, and one that is not an object', async () => {
-    expect((await doctor({ cwd: makeProject(project({ dependencies: ['a'], devDependencies: 'b' })) })).known).toEqual(['layout']);
-    expect((await doctor({ cwd: makeProject({ 'package.json': '[]', 'exadev.config.ts': 'export default {};\n' }) })).known).toEqual(['layout']);
+  it('reads the manifest field under the documented name', () => {
+    expect(MANIFEST_FIELD).toBe('exadevConfig');
+  });
+
+  it.each([
+    ['a dependency field that is not an object', { dependencies: ['a'] }, 'dependencies: expected an object'],
+    ['a dependency field that is a string', { devDependencies: 'b' }, 'devDependencies: expected an object'],
+  ])('rejects a project package.json with %s', async (_name, packageJson, problem) => {
+    const cwd = makeProject(project(packageJson));
+
+    await expect(doctor({ cwd })).rejects.toThrow(new TypeError(`the project's package.json is invalid:\n  ${problem}`));
+  });
+
+  it('rejects a project package.json that is not an object, and an installed one', async () => {
+    await expect(doctor({ cwd: makeProject({ 'package.json': '[]', 'exadev.config.ts': 'export default {};\n' }) })).rejects.toThrow(
+      new TypeError("the project's package.json is invalid:\n  (root): expected an object"),
+    );
+    await expect(doctor({ cwd: makeProject({ ...project({ dependencies: { a: '1' } }), 'node_modules/a/package.json': '[]' }) })).rejects.toThrow(
+      new TypeError("the package.json of 'a' is invalid:\n  (root): expected an object"),
+    );
+  });
+
+  it('does not read the dependency fields of an installed package', async () => {
+    const cwd = makeProject({ ...project({ dependencies: { a: '1' } }, 'export default {};\n'), ...installed('a', { dependencies: 'not an object' }) });
+
+    expect((await doctor({ cwd })).known).toEqual(['layout']);
   });
 
   it('treats a directory with no package.json as having no installed tools', async () => {
@@ -167,29 +191,35 @@ describe('doctor', () => {
   });
 
   it('names the project when its own manifest is malformed', async () => {
-    const cwd = makeProject(project({ [MANIFEST_FIELD]: {} }));
+    const cwd = makeProject(project({ exadevConfig: {} }));
 
-    await expect(doctor({ cwd })).rejects.toThrow(new TypeError(`invalid '${MANIFEST_FIELD}' in the project's package.json:\n  sections: required`));
+    await expect(doctor({ cwd })).rejects.toThrow(new TypeError("the project's package.json is invalid:\n  exadevConfig.sections: required"));
   });
 
   it('ignores a key of the manifest that it does not know, so a later manifest version does not break an older doctor', async () => {
     const cwd = makeProject({
       ...project({ dependencies: { 'tool-a': '1' } }, 'export default { toolA: {} };\n'),
-      ...installed('tool-a', { [MANIFEST_FIELD]: { sections: ['toolA'], version: 2 } }),
+      ...installed('tool-a', { exadevConfig: { sections: ['toolA'], version: 2 } }),
     });
 
     expect((await doctor({ cwd })).unowned).toEqual([]);
   });
 
   describe('a malformed manifest', () => {
-    it.each([
-      ['a string', 'sections', '(root): expected an object'],
-      ['no sections key', {}, 'sections: required'],
-      ['a non-string section', { sections: ['a', 2] }, 'sections.1: expected a string'],
-    ])('with %s is an error naming the package and the problem', async (_name, manifest, problem) => {
-      const cwd = makeProject({ ...project({ dependencies: { 'tool-a': '1' } }), ...installed('tool-a', { [MANIFEST_FIELD]: manifest }) });
+    it('lists every problem, one to a line', async () => {
+      const cwd = makeProject({ ...project({ dependencies: { 'tool-a': '1' } }), ...installed('tool-a', { exadevConfig: { sections: [1, 2] } }) });
 
-      await expect(doctor({ cwd })).rejects.toThrow(new TypeError(`invalid '${MANIFEST_FIELD}' in the package.json of 'tool-a':\n  ${problem}`));
+      await expect(doctor({ cwd })).rejects.toThrow(new TypeError("the package.json of 'tool-a' is invalid:\n  exadevConfig.sections.0: expected a string\n  exadevConfig.sections.1: expected a string"));
+    });
+
+    it.each([
+      ['a string', 'sections', ': expected an object'],
+      ['no sections key', {}, '.sections: required'],
+      ['a non-string section', { sections: ['a', 2] }, '.sections.1: expected a string'],
+    ])('with %s is an error naming the package and the problem', async (_name, manifest, problem) => {
+      const cwd = makeProject({ ...project({ dependencies: { 'tool-a': '1' } }), ...installed('tool-a', { exadevConfig: manifest }) });
+
+      await expect(doctor({ cwd })).rejects.toThrow(new TypeError(`the package.json of 'tool-a' is invalid:\n  exadevConfig${problem}`));
     });
   });
 });
