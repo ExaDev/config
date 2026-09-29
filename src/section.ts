@@ -57,9 +57,49 @@ export interface Rejected<Reason extends string> {
 export type EnvelopeKey = keyof Envelope;
 
 /**
- * What a section name must be besides a string: `unknown` (no further constraint) unless it is an {@link Envelope} key, which a section may not take because the key already means something else.
+ * The characters a section name may start with, and (with {@link SECTION_NAME_TAIL_CHARACTERS}) the characters it may continue with. This is the single definition of the allowed character set: the runtime pattern is built from it, and the compile-time check of a literal name is derived from its type.
  */
-type Nameable<Name extends string> = Name extends EnvelopeKey ? Rejected<'a section may not be named after a key of the config envelope'> : unknown;
+export const SECTION_NAME_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+
+/**
+ * The characters a section name may contain after its first letter, besides the letters in {@link SECTION_NAME_LETTERS}. The hyphen is last so that it is literal inside the character class of the runtime pattern.
+ */
+export const SECTION_NAME_TAIL_CHARACTERS = '0123456789_-';
+
+/**
+ * The union of the single characters of `Text`, accumulated so that the recursion is a tail call and the length of the character set is not limited by the nesting depth.
+ */
+type CharactersOf<Text extends string, Collected extends string = never> = Text extends `${infer First}${infer Rest}` ? CharactersOf<Rest, Collected | First> : Collected;
+
+/**
+ * `true` when every character of `Text` is in `Allowed`, including for the empty text. Tail-recursive, so TypeScript evaluates it iteratively up to its limit of 1000 steps; a literal name longer than that is a compile error ("excessively deep") rather than being accepted unchecked.
+ */
+type AllIn<Text extends string, Allowed extends string> = Text extends `${infer First}${infer Rest}` ? (First extends Allowed ? AllIn<Rest, Allowed> : false) : true;
+
+/**
+ * Whether the literal `Name` matches the runtime rule exactly: a letter of {@link SECTION_NAME_LETTERS}, then any number of those letters or characters of {@link SECTION_NAME_TAIL_CHARACTERS}. A union distributes, so the result contains `false` when any member is invalid. The empty name is invalid because it has no first letter.
+ */
+type IsSectionName<Name extends string> = Name extends `${infer First}${infer Rest}`
+  ? First extends CharactersOf<typeof SECTION_NAME_LETTERS>
+    ? AllIn<Rest, CharactersOf<typeof SECTION_NAME_LETTERS | typeof SECTION_NAME_TAIL_CHARACTERS>>
+    : false
+  : false;
+
+/**
+ * The members of the literal `Name` (a single name or a union of them) that break the naming rule, or `never` when all follow it.
+ */
+type BadNames<Name extends string> = Name extends unknown ? (IsSectionName<Name> extends true ? never : Name) : never;
+
+/**
+ * What a section name must be besides a string: `unknown` (no further constraint) unless a literal breaks the naming rule, which is reported quoting the offending names, or is an {@link Envelope} key, which a section may not take because the key already means something else. A name that is not a literal (`string`) passes here; the runtime check and {@link Listable} deal with it.
+ */
+type Nameable<Name extends string> = string extends Name
+  ? unknown
+  : [BadNames<Name>] extends [never]
+    ? [Extract<Name, EnvelopeKey>] extends [never]
+      ? unknown
+      : Rejected<'a section may not be named after a key of the config envelope'>
+    : Rejected<`invalid section name '${BadNames<Name>}': it must start with a letter and contain only letters, digits, '-' and '_'`>;
 
 /**
  * The literal names of every descriptor in `Descriptors` except the one at `Index`. A name that is not a literal is left out, because `string` would otherwise be reported as a duplicate of every other name; it is rejected on its own.
@@ -76,21 +116,23 @@ type NonEmpty<Descriptors extends readonly Section[]> = Descriptors extends read
 /**
  * What an argument of {@link withSections} must be besides a descriptor: `unknown` (no further constraint) when the descriptor can be listed, otherwise a {@link Rejected} that says why not.
  *
- * A name that is not a literal (`string`, from a descriptor annotated with a wide {@link Section} type) would give {@link SectionsOf} a string index signature, which turns off the excess-property check for the whole config. A name that is an {@link Envelope} key, or is shared by two descriptors, would give one key two meanings.
+ * A name that breaks the naming rule of {@link defineSection}, which only a hand-written descriptor type can carry, is refused with the rule. A name that is not a literal (`string`, from a descriptor annotated with a wide {@link Section} type) would give {@link SectionsOf} a string index signature, which turns off the excess-property check for the whole config. A name that is an {@link Envelope} key, or is shared by two descriptors, would give one key two meanings.
  */
 export type Listable<Descriptor extends Section, Descriptors extends readonly Section[], Index extends PropertyKey> = string extends Descriptor['name']
   ? Rejected<'a listed section needs a literal name type: annotate the descriptor as Section<"name", Schema> or leave it inferred'>
   : Descriptor['name'] extends EnvelopeKey
     ? Rejected<'a section may not be named after a key of the config envelope'>
-    : Descriptor['name'] extends OtherNames<Descriptors, Index>
-      ? Rejected<'a section name may be listed only once'>
-      : unknown;
+    : [BadNames<Descriptor['name']>] extends [never]
+      ? Descriptor['name'] extends OtherNames<Descriptors, Index>
+        ? Rejected<'a section name may be listed only once'>
+        : unknown
+      : Rejected<`invalid section name '${BadNames<Descriptor['name']>}': it must start with a letter and contain only letters, digits, '-' and '_'`>;
 
-const SECTION_NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
+const SECTION_NAME = new RegExp(`^[${SECTION_NAME_LETTERS}][${SECTION_NAME_LETTERS}${SECTION_NAME_TAIL_CHARACTERS}]*$`);
 const ENVELOPE_KEYS: readonly string[] = ['extends'];
 
 /**
- * Describe a tool's section. `name` is both the key in the unified config and the base of the standalone file name `exadev.<name>.config.ts`, so it must start with a letter and contain only letters, digits, `-` and `_`, and it must not be a key of the {@link Envelope}. Throws a `TypeError` otherwise.
+ * Describe a tool's section. `name` is both the key in the unified config and the base of the standalone file name `exadev.<name>.config.ts`, so it must start with a letter and contain only letters, digits, `-` and `_`, and it must not be a key of the {@link Envelope}. A literal name that breaks the rule is a compile error quoting the name; a name that is not a literal, or is longer than TypeScript can check, is checked when the call runs. Throws a `TypeError` otherwise.
  */
 export function defineSection<const Name extends string, Schema extends StandardSchemaV1>(
   name: Name & Nameable<Name>,
