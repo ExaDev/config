@@ -44,6 +44,48 @@ export type SectionsOf<Descriptors extends readonly Section[]> = {
  */
 export type ConfigOf<Descriptors extends readonly Section[]> = Config<SectionsOf<Descriptors>>;
 
+/**
+ * A type that no value has, used where an argument must be refused: the compiler quotes `Reason` in its error message, so the reason is what the author reads.
+ */
+export interface Rejected<Reason extends string> {
+  readonly rejected: Reason;
+}
+
+/**
+ * The names of the {@link Envelope} keys, which a section may not take.
+ */
+export type EnvelopeKey = keyof Envelope;
+
+/**
+ * What a section name must be besides a string: `unknown` (no further constraint) unless it is an {@link Envelope} key, which a section may not take because the key already means something else.
+ */
+type Nameable<Name extends string> = Name extends EnvelopeKey ? Rejected<'a section may not be named after a key of the config envelope'> : unknown;
+
+/**
+ * The literal names of every descriptor in `Descriptors` except the one at `Index`. A name that is not a literal is left out, because `string` would otherwise be reported as a duplicate of every other name; it is rejected on its own.
+ */
+type OtherNames<Descriptors extends readonly Section[], Index extends PropertyKey> = {
+  [Position in keyof Descriptors]: Position extends Index ? never : string extends Descriptors[Position]['name'] ? never : Descriptors[Position]['name'];
+}[number];
+
+/**
+ * `unknown` (no further constraint) unless `Descriptors` is empty. With no sections the mapped part of {@link Config} would be `{}`, so {@link withSections} refuses an empty list.
+ */
+type NonEmpty<Descriptors extends readonly Section[]> = Descriptors extends readonly [] ? Rejected<'list at least one section, or use defineConfig for a config with none'> : unknown;
+
+/**
+ * What an argument of {@link withSections} must be besides a descriptor: `unknown` (no further constraint) when the descriptor can be listed, otherwise a {@link Rejected} that says why not.
+ *
+ * A name that is not a literal (`string`, from a descriptor annotated with a wide {@link Section} type) would give {@link SectionsOf} a string index signature, which turns off the excess-property check for the whole config. A name that is an {@link Envelope} key, or is shared by two descriptors, would give one key two meanings.
+ */
+export type Listable<Descriptor extends Section, Descriptors extends readonly Section[], Index extends PropertyKey> = string extends Descriptor['name']
+  ? Rejected<'a listed section needs a literal name type: annotate the descriptor as Section<"name", Schema> or leave it inferred'>
+  : Descriptor['name'] extends EnvelopeKey
+    ? Rejected<'a section may not be named after a key of the config envelope'>
+    : Descriptor['name'] extends OtherNames<Descriptors, Index>
+      ? Rejected<'a section name may be listed only once'>
+      : unknown;
+
 const SECTION_NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
 const ENVELOPE_KEYS: readonly string[] = ['extends'];
 
@@ -51,7 +93,7 @@ const ENVELOPE_KEYS: readonly string[] = ['extends'];
  * Describe a tool's section. `name` is both the key in the unified config and the base of the standalone file name `<name>.config.ts`, so it must start with a letter and contain only letters, digits, `-` and `_`, and it must not be a key of the {@link Envelope}. Throws a `TypeError` otherwise.
  */
 export function defineSection<const Name extends string, Schema extends StandardSchemaV1>(
-  name: Name,
+  name: Name & Nameable<Name>,
   schema: Schema,
 ): Section<Name, Schema> {
   if (!SECTION_NAME.test(name)) {
@@ -73,8 +115,8 @@ export function defineSection<const Name extends string, Schema extends Standard
  *
  * A section is accepted when its descriptor is passed, so a tool whose package is not installed is a module-not-found error on its import, and a tool that is installed but not passed is an unknown-property error on its key. At least one descriptor is required, and each name may be listed once: a repeated name throws a `TypeError`.
  */
-export function withSections<const Descriptors extends readonly [Section, ...Section[]]>(
-  ...sections: Descriptors
+export function withSections<const Descriptors extends readonly Section[]>(
+  ...sections: Descriptors & NonEmpty<Descriptors> & { readonly [Index in keyof Descriptors]: Listable<Descriptors[Index], Descriptors, Index> }
 ): (config: ConfigOf<Descriptors>) => ConfigOf<Descriptors> {
   const names = new Set<string>();
   for (const { name } of sections) {
