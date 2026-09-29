@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { assertDirectory, type ConfigFileOptions, readUnifiedFile, UNIFIED_FILE } from './config-file';
+import { assertDirectory, type ConfigFileOptions, findConfigFile, readUnifiedFile, UNIFIED_BASE } from './config-file';
 import { layoutSection } from './layout';
 import { array, type Check, isRecord, isString, required, strictObject } from './validation';
 
@@ -37,11 +37,11 @@ export interface DoctorOptions extends ConfigFileOptions {
  */
 export interface DoctorReport {
   /**
-   * The unified config file that was read, or `undefined` when the directory has none or the file is empty.
+   * The unified config file that was read (`exadev.config.ts`, or the same with the extension `.mts` or `.cts`), or `undefined` when the directory has none or the file is empty.
    */
   readonly file: string | undefined;
   /**
-   * The top-level keys the file defines after `extends` is applied, in file order.
+   * The top-level keys the file defines after `extends` is applied, in merge order: the keys of a preset come before the keys only the file itself defines.
    */
   readonly defined: readonly string[];
   /**
@@ -123,10 +123,10 @@ function installedSections(cwd: string): readonly string[] {
  */
 export async function doctor(options: DoctorOptions): Promise<DoctorReport> {
   assertDirectory(options.cwd);
-  const file = join(options.cwd, UNIFIED_FILE);
-  const config = await readUnifiedFile(file, options);
+  const file = findConfigFile(options.cwd, UNIFIED_BASE);
+  const config = file === undefined ? undefined : await readUnifiedFile(file, options);
   const known = [...new Set([layoutSection.name, ...installedSections(options.cwd), ...(options.listed ?? [])])].sort();
-  if (config === undefined) {
+  if (file === undefined || config === undefined) {
     return { file: undefined, defined: [], unowned: [], known };
   }
   const defined = Object.keys(config);

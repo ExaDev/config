@@ -1,6 +1,6 @@
 # @exadev/config
 
-The unified `exadev.config.ts`. Each ExaDev tool contributes a typed, schema-validated section to one config file, or reads the same section from a standalone `<tool>.config.ts`, and this package imports no tool to make that work. It builds on [cosmiconfig-extends](https://github.com/ExaDev/cosmiconfig-extends), so a config file is TypeScript evaluated through jiti and can `extends` presets, under that package's trust policy.
+The unified `exadev.config.ts`. Each ExaDev tool contributes a typed, schema-validated section to one config file, or reads the same section from a standalone `exadev.<tool>.config.ts`, and this package imports no tool to make that work. It builds on [cosmiconfig-extends](https://github.com/ExaDev/cosmiconfig-extends), so a config file is TypeScript evaluated through jiti and can `extends` presets, under that package's trust policy.
 
 ## Getting started
 
@@ -55,12 +55,14 @@ export default config;
 
 ## Standalone and unified files
 
-A tool reads its section with `loadSection(section, { cwd })`. The section comes from either of two files in `cwd`, and neither is searched for in a parent directory:
+A tool reads its section with `loadSection(section, { cwd })`. `cwd` must be an existing directory, and a mistyped one throws instead of reading as a directory with no config. The section comes from either of two files in `cwd`, and neither is searched for in a parent directory:
 
 - `exadev.config.ts`, under the key `section.name`.
-- `<section.name>.config.ts`, whose default export is the section itself.
+- `exadev.<section.name>.config.ts`, whose default export is the section itself.
 
-Both are evaluated with `extends` applied, and both produce the same section for the same content. A section defined in both files throws an error naming both, since choosing one silently would hide a configuration that never takes effect. When neither file defines it the result is `undefined`.
+The standalone name is namespaced because the plain `<name>.config.ts` is the native config file of many tools (`eslint.config.ts`, `vitest.config.ts`), so a section called `eslint` would otherwise read the ESLint flat config as its own. Either file may use the extension `.mts` or `.cts` instead of `.ts`; a file that exists under more than one extension throws, since choosing one silently would hide a configuration that never takes effect. Other extensions, and the plain `<name>.config.ts`, are never read.
+
+Both are evaluated with `extends` applied, and both produce the same section for the same content. A section defined in both files (the unified file counts a section a preset supplies) throws an error naming both, since choosing one silently would hide a configuration that never takes effect. When neither file defines it the result is `undefined`.
 
 The result is the schema's output, so defaults the schema applies are included. A section that fails its schema throws `ConfigValidationError` from cosmiconfig-extends, naming the file, with one normalised `{ path, message }` entry per problem. A unified file that exports anything but an object throws a `TypeError`, and so does any config file with no default export or a `null` one, since a configuration that never takes effect must not read as an absent file. Only an empty file, or one whose default export is `undefined`, is an empty config.
 

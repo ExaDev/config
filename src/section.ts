@@ -90,7 +90,7 @@ const SECTION_NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
 const ENVELOPE_KEYS: readonly string[] = ['extends'];
 
 /**
- * Describe a tool's section. `name` is both the key in the unified config and the base of the standalone file name `<name>.config.ts`, so it must start with a letter and contain only letters, digits, `-` and `_`, and it must not be a key of the {@link Envelope}. Throws a `TypeError` otherwise.
+ * Describe a tool's section. `name` is both the key in the unified config and the base of the standalone file name `exadev.<name>.config.ts`, so it must start with a letter and contain only letters, digits, `-` and `_`, and it must not be a key of the {@link Envelope}. Throws a `TypeError` otherwise.
  */
 export function defineSection<const Name extends string, Schema extends StandardSchemaV1>(
   name: Name & Nameable<Name>,
