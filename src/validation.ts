@@ -37,6 +37,18 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Accepts any non-null, non-array object, without looking at its properties.
+ */
+export const isObject: Check<Readonly<Record<string, unknown>>> = (value, path, report): value is Readonly<Record<string, unknown>> => {
+  if (isRecord(value)) {
+    return true;
+  }
+  report(path, 'expected an object');
+
+  return false;
+};
+
 function isInteger(value: unknown): value is number {
   return Number.isInteger(value);
 }
@@ -206,4 +218,18 @@ export function standardSchema<T>(vendor: string, check: Check<T>): StandardSche
       },
     },
   };
+}
+
+/**
+ * Return `value` when `check` accepts it. Otherwise throw a `TypeError` that names `subject` and lists every problem as `path: message`, the path being empty for the value itself.
+ */
+export function validated<T>(check: Check<T>, value: unknown, subject: string): T {
+  const problems: string[] = [];
+  if (!check(value, [], (path, message) => {
+    problems.push(`${path.join('.') || '(root)'}: ${message}`);
+  })) {
+    throw new TypeError(`${subject} is invalid:\n${problems.map((problem) => `  ${problem}`).join('\n')}`);
+  }
+
+  return value;
 }

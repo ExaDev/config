@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 
 import { assertDirectory, type ConfigFileOptions, findConfigFile, readUnifiedFile, UNIFIED_BASE } from './config-file';
 import { layoutSection } from './layout';
-import { array, type Check, isRecord, isString, looseObject, required } from './validation';
+import { array, type Check, isObject, isString, looseObject, optional, required, validated } from './validation';
 
 /**
  * The `package.json` field through which a tool package declares the section names it owns: `"exadevConfig": { "sections": ["eslint"] }`. It is how `doctor` learns which sections an installed tool reads, without importing the tool.
@@ -17,7 +17,36 @@ interface Manifest {
 // Loose, not strict: a future version of this package may add a key that an older doctor must not reject in every consumer that installs the tool.
 const isManifest: Check<Manifest> = looseObject<Manifest>({ sections: required(array(isString)) });
 
-const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
+type Dependencies = Readonly<Record<string, unknown>>;
+
+/**
+ * The part of a `package.json` that the tool packages installed for a project are read for.
+ */
+interface ManifestHolder {
+  readonly [MANIFEST_FIELD]?: Manifest;
+}
+
+/**
+ * The part of the project's own `package.json` that is read: the manifest field, and the dependency fields that name the installed tools.
+ */
+interface ProjectPackage extends ManifestHolder {
+  readonly dependencies?: Dependencies;
+  readonly devDependencies?: Dependencies;
+  readonly peerDependencies?: Dependencies;
+  readonly optionalDependencies?: Dependencies;
+}
+
+const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const satisfies readonly (keyof ProjectPackage)[];
+
+const holdsManifest: Check<ManifestHolder> = looseObject<ManifestHolder>({ [MANIFEST_FIELD]: optional(isManifest) });
+
+const isProjectPackage: Check<ProjectPackage> = looseObject<ProjectPackage>({
+  [MANIFEST_FIELD]: optional(isManifest),
+  dependencies: optional(isObject),
+  devDependencies: optional(isObject),
+  peerDependencies: optional(isObject),
+  optionalDependencies: optional(isObject),
+});
 
 /**
  * Options for {@link doctor}.
@@ -76,48 +105,29 @@ function findInstalledManifest(cwd: string, name: string): unknown {
   }
 }
 
-function dependencyNames(packageJson: unknown): readonly string[] {
-  if (!isRecord(packageJson)) {
-    return [];
-  }
-
-  return DEPENDENCY_FIELDS.flatMap((field) => {
-    const dependencies = packageJson[field];
-
-    return isRecord(dependencies) ? Object.keys(dependencies) : [];
-  });
-}
-
-function declaredSections(owner: string, packageJson: unknown): readonly string[] {
-  if (!isRecord(packageJson) || !Object.hasOwn(packageJson, MANIFEST_FIELD)) {
-    return [];
-  }
-  const manifest = packageJson[MANIFEST_FIELD];
-  const problems: string[] = [];
-  if (!isManifest(manifest, [], (path, message) => {
-    problems.push(`${path.join('.') || '(root)'}: ${message}`);
-  })) {
-    throw new TypeError(`invalid '${MANIFEST_FIELD}' in ${owner}:\n${problems.map((problem) => `  ${problem}`).join('\n')}`);
-  }
-
-  return manifest.sections;
+/**
+ * The names of the dependencies of `project` in every dependency field, which may repeat.
+ */
+function dependencyNames(project: ProjectPackage): readonly string[] {
+  return DEPENDENCY_FIELDS.flatMap((field) => Object.keys({ ...project[field] }));
 }
 
 /**
- * The section names that the project in `cwd` and the packages installed for it declare through {@link MANIFEST_FIELD}; the project's own declaration is how a tool repository owns the section it dogfoods. A dependency that is not installed, or declares none, contributes nothing.
+ * The section names that the project in `cwd` and the packages installed for it declare through {@link MANIFEST_FIELD}; the project's own declaration is how a tool repository owns the section it dogfoods. A dependency that is not installed, or declares none, contributes nothing. Throws when a `package.json` it reads is not an object, or when a manifest or the project's dependency fields are malformed.
  */
 function installedSections(cwd: string): readonly string[] {
   const projectFile = join(cwd, 'package.json');
   if (statSync(projectFile, { throwIfNoEntry: false })?.isFile() !== true) {
     return [];
   }
+  const project = validated(isProjectPackage, readJson(projectFile), "the project's package.json");
+  const installed = dependencyNames(project).flatMap((name) => {
+    const manifest = findInstalledManifest(cwd, name);
 
-  const project = readJson(projectFile);
+    return manifest === undefined ? [] : (validated(holdsManifest, manifest, `the package.json of '${name}'`)[MANIFEST_FIELD]?.sections ?? []);
+  });
 
-  return [
-    ...declaredSections("the project's package.json", project),
-    ...dependencyNames(project).flatMap((name) => declaredSections(`the package.json of '${name}'`, findInstalledManifest(cwd, name))),
-  ];
+  return [...(project[MANIFEST_FIELD]?.sections ?? []), ...installed];
 }
 
 /**
@@ -125,15 +135,19 @@ function installedSections(cwd: string): readonly string[] {
  *
  * Typing cannot catch these: a section for a tool that is not installed, or under a misspelt name, is simply ignored by every tool. A section is owned when it is `layout`, when a dependency of the project in `cwd` declares it through {@link MANIFEST_FIELD}, or when it is in `options.listed`.
  *
- * Throws when `cwd` is not an existing directory, when the config file cannot be loaded, when it does not export an object, or when an installed dependency's {@link MANIFEST_FIELD} is malformed.
+ * Throws when `cwd` is not an existing directory, when the config file cannot be loaded, when it does not export an object, or when a `package.json` it reads is not an object or has a malformed {@link MANIFEST_FIELD} or dependency field.
  */
 export async function doctor(options: DoctorOptions): Promise<DoctorReport> {
   assertDirectory(options.cwd);
-  const file = findConfigFile(options.cwd, UNIFIED_BASE);
-  const config = file === undefined ? undefined : await readUnifiedFile(file, options);
   const known = [...new Set([layoutSection.name, ...installedSections(options.cwd), ...(options.listed ?? [])])].sort();
-  if (file === undefined || config === undefined) {
-    return { file: undefined, defined: [], unowned: [], known };
+  const nothingDefined: DoctorReport = { file: undefined, defined: [], unowned: [], known };
+  const file = findConfigFile(options.cwd, UNIFIED_BASE);
+  if (file === undefined) {
+    return nothingDefined;
+  }
+  const config = await readUnifiedFile(file, options);
+  if (config === undefined) {
+    return nothingDefined;
   }
   const defined = Object.keys(config);
 
