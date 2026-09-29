@@ -32,10 +32,13 @@ export default withSections(layoutSection, myTool)({
 
 A section is accepted exactly when its descriptor is passed, so the type system reports the mistakes a config file is likely to contain:
 
-- A key or value the section's schema does not allow is an error on that key, with a near-miss suggestion for a misspelt one.
+- A key, or a value of a type, that the section's type does not allow is an error on that key, with a near-miss suggestion for a misspelt one. The type is the schema's input type, so a rule the schema enforces only at runtime (an integer minimum, unique names, a valid pattern) passes the type checker and is checked when a tool loads the section.
 - A section whose tool is installed but not passed to `withSections` is an unknown-property error on its key.
+- A descriptor that could not be told apart in the type (a name that is not a literal, an envelope key such as `extends`, a name listed twice) is refused with a message saying why.
 - A section whose tool is not installed is a module-not-found error on the import.
 - A config that lists no sections accepts none. Without a section an empty mapped type would be `{}`, which TypeScript does not check for excess properties, so `defineConfig` accepts only the `extends` key and `withSections` needs at least one descriptor.
+
+The unknown-key and misspelt-name errors come from TypeScript's excess-property check, which applies to an object literal passed directly to the function. A config built elsewhere and passed by variable or spread is not checked for extra keys, so `exadev-config doctor` (below) remains the check for a key nobody reads.
 
 `extends` names presets, resolved and merged by cosmiconfig-extends. For the unified file a preset is a whole config file, so it can supply any section.
 
@@ -150,7 +153,7 @@ pnpm build           # tsdown: ESM, CJS and declarations
 pnpm test:mutation   # Stryker, with a 100% break threshold
 ```
 
-CI also runs `pnpm exec publint` and `pnpm exec attw --pack` after the build, and installs the packed tarball into a scratch project on each supported Node line and both cosmiconfig majors (`test/package/install-check.sh`), where it loads sections and runs the command as ESM and as CommonJS.
+CI also runs `pnpm exec publint` and `pnpm exec attw --pack` after the build, and installs the packed tarball into a scratch project on each supported Node line and both cosmiconfig majors (`test/package/install-check.sh`), where it loads sections as ESM and as CommonJS and runs the command from the ESM check.
 
 The authoring type checks are tests: `test/types/authoring-types.integration.test.ts` compiles the files in `test/types/fixtures/cases` with the TypeScript compiler API and asserts the exact errors each one produces, so a change that loosens the types fails a test instead of passing silently.
 
