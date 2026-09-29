@@ -78,13 +78,13 @@ function requireDefaultExport(loader: Loader): Loader {
 }
 
 /**
- * The evaluated content of the config file at `file` after `extends` is applied, or `undefined` when the file is empty or has `undefined` as its default export. Throws when the file does not export a default value. Every call reads the file afresh.
+ * The evaluated content of the config file at `file` after `extends` is applied, or `undefined` when the file is empty or has `undefined` as its default export. Throws when the file does not export a default value. Every call reads the file afresh, because it builds an explorer of its own and so shares no cache.
  */
 export async function readConfigFile(file: string, options: ConfigFileOptions): Promise<unknown> {
   const checked = requireDefaultExport(createJitiLoader(options).loader);
-  const explorer = createExplorer('exadev', {
+  const explorer = createExplorer(UNIFIED_BASE, {
     ...options,
-    cosmiconfig: { cache: false, loaders: { '.ts': checked, '.mts': checked, '.cts': checked } },
+    cosmiconfig: { loaders: { '.ts': checked, '.mts': checked, '.cts': checked } },
   });
   const result = await explorer.load(file);
 

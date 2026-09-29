@@ -42,7 +42,7 @@ async function runDoctor(args: readonly string[], output: CommandOutput): Promis
 
     return EXIT_CODES.clean;
   }
-  const cwd = resolve(values.cwd ?? '.');
+  const cwd = resolve(values.cwd ?? process.cwd());
   const report = await doctor({ cwd, listed: values.section ?? [] });
   if (report.file === undefined) {
     output.stdout(`${cwd}: nothing to check, since exadev.config.ts is absent or empty there. The command does not search parent directories.\n`);
