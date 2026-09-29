@@ -7,7 +7,8 @@ const config: Partial<StrykerOptions> = {
   plugins: ['@stryker-mutator/typescript-checker', '@stryker-mutator/vitest-runner'],
   checkers: ['typescript'],
   coverageAnalysis: 'perTest',
-  mutate: ['src/**/*.ts', '!src/**/*.test.ts'],
+  // cli.ts only forwards process arguments and streams to runCommand, so no test in this project can observe a mutant in it; the packaged-install check runs it.
+  mutate: ['src/**/*.ts', '!src/**/*.test.ts', '!src/cli.ts'],
   incremental: true,
   incrementalFile: 'reports/stryker-incremental.json',
   reporters: ['html', 'clear-text', 'progress'],
