@@ -17,16 +17,16 @@ Each tool package exports the section it owns. The authoring file passes the sec
 ```ts
 // exadev.config.ts
 import { layoutSection, withSections } from '@exadev/config';
-import { eslint } from '@exadev/eslint-config';
+import { myTool } from 'my-tool';
 
-export default withSections(layoutSection, eslint)({
+export default withSections(layoutSection, myTool)({
   layout: {
     groups: [
       { name: 'core', rank: 0 },
       { name: 'features', rank: 1, slice: { segment: 0 } },
     ],
   },
-  eslint: { /* the tool's own options */ },
+  myTool: { include: ['src'] },
 });
 ```
 
