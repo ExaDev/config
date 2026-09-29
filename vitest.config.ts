@@ -1,9 +1,12 @@
 import { defineConfig, type ViteUserConfig } from 'vitest/config';
 
+// Every case that loads a TypeScript file pays jiti's first-transpile cost, and the interop cases spawn a second cosmiconfig major. The authoring type test compiles every fixture with the TypeScript compiler in a hook, so hooks get the same allowance.
+const SLOW_WORK_TIMEOUT_MS = 30_000;
+
 const config: ViteUserConfig = defineConfig({
   test: {
-    // Every case that loads a TypeScript file pays jiti's first-transpile cost, and the interop cases spawn a second cosmiconfig major.
-    testTimeout: 30_000,
+    testTimeout: SLOW_WORK_TIMEOUT_MS,
+    hookTimeout: SLOW_WORK_TIMEOUT_MS,
     coverage: {
       enabled: true,
       provider: 'v8',
