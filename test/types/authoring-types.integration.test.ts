@@ -14,7 +14,7 @@ const FIXTURES = join(import.meta.dirname, 'fixtures');
 const CASES = join(FIXTURES, 'cases');
 
 /**
- * The compiler options of the project's own tsconfig that decide how strictly an authoring file is checked. `isolatedDeclarations` is added only for the program that emits declarations.
+ * A subset of the compiler options of the project's own tsconfig that decide how strictly an authoring file is checked. `isolatedDeclarations` is added only for the program that emits declarations.
  */
 const BASE_OPTIONS: ts.CompilerOptions = {
   exactOptionalPropertyTypes: true,
