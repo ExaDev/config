@@ -21,6 +21,12 @@ describe('doctor', () => {
     expect(await doctor({ cwd: makeProject() })).toEqual({ file: undefined, defined: [], unowned: [], known: ['layout'] });
   });
 
+  it('fails when cwd is not an existing directory, instead of reporting a clean one', async () => {
+    const missing = join(makeProject(), 'nope');
+
+    await expect(doctor({ cwd: missing })).rejects.toThrow(new Error(`${missing} is not an existing directory`));
+  });
+
   it('reports nothing for an empty unified config', async () => {
     const cwd = makeProject({ 'exadev.config.ts': 'export default undefined;\n' });
 

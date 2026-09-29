@@ -108,6 +108,12 @@ describe('runCommand', () => {
       expect(stderr).not.toBe('');
     });
 
+    it('fails, naming the directory, when --cwd is not an existing directory', async () => {
+      const missing = join(makeProject(), 'nope-typo');
+
+      expect(await run('doctor', '--cwd', missing)).toEqual({ code: EXIT_CODES.failed, stdout: '', stderr: `${missing} is not an existing directory\n` });
+    });
+
     it('fails, reporting the message, when the config cannot be loaded', async () => {
       const cwd = makeProject({ 'exadev.config.ts': "throw new Error('broken config');\n" });
       const { code, stderr } = await run('doctor', '--cwd', cwd);

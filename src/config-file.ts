@@ -17,6 +17,15 @@ export const UNIFIED_FILE = 'exadev.config.ts';
 export type ConfigFileOptions = Pick<ExplorerOptions, 'alias' | 'fsCache' | 'merge' | 'trust'>;
 
 /**
+ * Throw unless `directory` is an existing directory, so a mistyped directory is an error rather than a directory with no config.
+ */
+export function assertDirectory(directory: string): void {
+  if (statSync(directory, { throwIfNoEntry: false })?.isDirectory() !== true) {
+    throw new Error(`${directory} is not an existing directory`);
+  }
+}
+
+/**
  * The path of the standalone config file for the tool that owns section `name`.
  */
 export function standaloneFile(cwd: string, name: string): string {

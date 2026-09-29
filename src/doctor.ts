@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { type ConfigFileOptions, readUnifiedFile, UNIFIED_FILE } from './config-file';
+import { assertDirectory, type ConfigFileOptions, readUnifiedFile, UNIFIED_FILE } from './config-file';
 import { layoutSection } from './layout';
 import { array, type Check, isRecord, isString, required, strictObject } from './validation';
 
@@ -119,9 +119,10 @@ function installedSections(cwd: string): readonly string[] {
  *
  * Typing cannot catch these: a section for a tool that is not installed, or under a misspelt name, is simply ignored by every tool. A section is owned when it is `layout`, when a dependency of the project in `cwd` declares it through {@link MANIFEST_FIELD}, or when it is in `options.listed`.
  *
- * Throws when the config file cannot be loaded, when it does not export an object, or when an installed dependency's {@link MANIFEST_FIELD} is malformed.
+ * Throws when `cwd` is not an existing directory, when the config file cannot be loaded, when it does not export an object, or when an installed dependency's {@link MANIFEST_FIELD} is malformed.
  */
 export async function doctor(options: DoctorOptions): Promise<DoctorReport> {
+  assertDirectory(options.cwd);
   const file = join(options.cwd, UNIFIED_FILE);
   const config = await readUnifiedFile(file, options);
   const known = [...new Set([layoutSection.name, ...installedSections(options.cwd), ...(options.listed ?? [])])].sort();

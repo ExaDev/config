@@ -102,6 +102,14 @@ describe('loadSection', () => {
     expect(await loadSection(constructorSection, { cwd })).toBeUndefined();
   });
 
+  it('fails when cwd is not an existing directory, instead of reporting an absent section', async () => {
+    const cwd = makeProject({ 'exadev.config.ts': unified() });
+    const missing = join(cwd, 'does-not-exist');
+
+    await expect(loadSection(toolA, { cwd: missing })).rejects.toThrow(new Error(`${missing} is not an existing directory`));
+    await expect(loadSection(toolA, { cwd: join(cwd, 'exadev.config.ts') })).rejects.toThrow('is not an existing directory');
+  });
+
   it('does not search parent directories', async () => {
     const parent = makeProject({ 'exadev.config.ts': unified() });
     writeProjectFile(parent, 'child/package.json', '{}');
