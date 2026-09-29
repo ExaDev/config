@@ -9,7 +9,8 @@ const config: ViteUserConfig = defineConfig({
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts'],
+      // cli.ts only forwards process arguments and streams to runCommand; the packaged-install check runs it.
+      exclude: ['src/**/*.test.ts', 'src/cli.ts'],
     },
   },
 });
