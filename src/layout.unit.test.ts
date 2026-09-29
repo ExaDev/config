@@ -212,3 +212,9 @@ describe('layoutSchema', () => {
     expect(await problemsOf({ groups: [{ name: 'a' }, { name: 'a', rank: 'x' }] })).toEqual([{ path: ['groups', 1, 'rank'], message: 'expected an integer' }]);
   });
 });
+
+describe('layoutSchema', () => {
+  it('declares the vendor that names this package', () => {
+    expect(layoutSchema['~standard'].vendor).toBe('@exadev/config');
+  });
+});

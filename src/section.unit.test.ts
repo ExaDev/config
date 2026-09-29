@@ -1,4 +1,4 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { beforeEach, describe, expect, expectTypeOf, it } from 'vitest';
 import { z } from 'zod';
 
 import { type Config, type ConfigOf, defineConfig, defineSection, type Envelope, type Section, type SectionsOf, withSections } from './section';
@@ -13,8 +13,16 @@ const toolAConfigSchema: z.ZodType<ToolAConfig, ToolAConfig> = z.strictObject({
   level: z.exactOptional(z.enum(['low', 'high'])),
 });
 
-const toolA: Section<'toolA', z.ZodType<ToolAConfig, ToolAConfig>> = defineSection('toolA', toolAConfigSchema);
-const toolB = defineSection('toolB', z.strictObject({ rules: z.record(z.string(), z.string()) }));
+const toolBConfigSchema = z.strictObject({ rules: z.record(z.string(), z.string()) });
+
+// Built in a hook, not at module level: when a change to defineSection makes it throw, the suite would fail to load and report no failing test, which a mutation run reads as a surviving mutant.
+let toolA: Section<'toolA', z.ZodType<ToolAConfig, ToolAConfig>>;
+let toolB: Section<'toolB', typeof toolBConfigSchema>;
+
+beforeEach(() => {
+  toolA = defineSection('toolA', toolAConfigSchema);
+  toolB = defineSection('toolB', toolBConfigSchema);
+});
 
 /**
  * The same string with its literal type widened, so a call the compiler refuses for the literal reaches the runtime check.
