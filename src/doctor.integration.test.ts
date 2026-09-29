@@ -18,8 +18,8 @@ function project(dependencies: Record<string, unknown>, config = 'export default
 const declares = (...sections: readonly string[]): Record<string, unknown> => ({ exadevConfig: { sections } });
 
 describe('doctor', () => {
-  it('reports nothing for a directory with no unified config, and still lists the built-in section', async () => {
-    expect(await doctor({ cwd: makeProject() })).toEqual({ file: undefined, defined: [], unowned: [], known: ['layout'] });
+  it('reports no config file, not a clean check, for a directory with no unified config, and still lists the built-in section', async () => {
+    expect(await doctor({ cwd: makeProject() })).toEqual({ outcome: 'no-config-file', file: undefined, defined: [], unowned: [], known: ['layout'] });
   });
 
   it('fails when cwd is not an existing directory, instead of reporting a clean one', async () => {
@@ -28,16 +28,16 @@ describe('doctor', () => {
     await expect(doctor({ cwd: missing })).rejects.toThrow(new Error(`${missing} is not an existing directory`));
   });
 
-  it('reports nothing for an empty unified config', async () => {
+  it('reports an empty config, not a clean check, for an empty unified config', async () => {
     const cwd = makeProject({ 'exadev.config.ts': 'export default undefined;\n' });
 
-    expect(await doctor({ cwd })).toEqual({ file: undefined, defined: [], unowned: [], known: ['layout'] });
+    expect(await doctor({ cwd })).toEqual({ outcome: 'empty', file: undefined, defined: [], unowned: [], known: ['layout'] });
   });
 
   it('owns the layout section without any package', async () => {
     const cwd = makeProject({ 'exadev.config.ts': 'export default { layout: {} };\n' });
 
-    expect(await doctor({ cwd })).toEqual({ file: join(cwd, 'exadev.config.ts'), defined: ['layout'], unowned: [], known: ['layout'] });
+    expect(await doctor({ cwd })).toEqual({ outcome: 'checked', file: join(cwd, 'exadev.config.ts'), defined: ['layout'], unowned: [], known: ['layout'] });
   });
 
   it('reports a section no installed or listed tool owns, keeping file order', async () => {

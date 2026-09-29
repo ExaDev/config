@@ -16,15 +16,16 @@ export interface CommandOutput {
   readonly stderr: (text: string) => void;
 }
 
-const USAGE = `Usage: exadev-config doctor [--cwd <directory>] [--section <name>]...
+const USAGE = `Usage: exadev-config doctor [--cwd <directory>] [--section <name>]... [--require-config]
 
 Reports the sections in exadev.config.ts that no installed or listed tool owns.
 
   --cwd <directory>   Directory that holds exadev.config.ts and package.json. Defaults to the current directory.
   --section <name>    Treat <name> as owned. Repeatable.
+  --require-config    Fail (exit status ${String(EXIT_CODES.failed)}) when the directory has no exadev.config.ts, instead of reporting that nothing was checked and succeeding.
   --help              Show this message.
 
-Exit status: ${String(EXIT_CODES.clean)} when every section is owned (or there is no exadev.config.ts to check), ${String(EXIT_CODES.unowned)} when some is not, ${String(EXIT_CODES.failed)} when the command could not run.
+Exit status: ${String(EXIT_CODES.clean)} when every section is owned (or there is no exadev.config.ts to check, unless --require-config is given), ${String(EXIT_CODES.unowned)} when some is not, ${String(EXIT_CODES.failed)} when the command could not run.
 `;
 
 function messageOf(error: unknown): string {
@@ -34,7 +35,7 @@ function messageOf(error: unknown): string {
 async function runDoctor(args: readonly string[], output: CommandOutput): Promise<number> {
   const { values } = parseArgs({
     args: [...args],
-    options: { cwd: { type: 'string' }, section: { type: 'string', multiple: true }, help: { type: 'boolean' } },
+    options: { cwd: { type: 'string' }, section: { type: 'string', multiple: true }, 'require-config': { type: 'boolean' }, help: { type: 'boolean' } },
     allowPositionals: false,
   });
   if (values.help === true) {
@@ -44,8 +45,19 @@ async function runDoctor(args: readonly string[], output: CommandOutput): Promis
   }
   const cwd = resolve(values.cwd ?? process.cwd());
   const report = await doctor({ cwd, listed: values.section ?? [] });
-  if (report.file === undefined) {
-    output.stdout(`${cwd}: nothing to check, since exadev.config.ts is absent or empty there. The command does not search parent directories.\n`);
+  if (report.outcome !== 'checked') {
+    if (report.outcome === 'empty') {
+      output.stdout(`${cwd}: the exadev config file in this directory is empty, so nothing was checked.\n`);
+
+      return EXIT_CODES.clean;
+    }
+    const message = `${cwd}: no exadev config file was found in this directory, so nothing was checked. The command does not search parent directories.\n`;
+    if (values['require-config'] === true) {
+      output.stderr(message);
+
+      return EXIT_CODES.failed;
+    }
+    output.stdout(message);
 
     return EXIT_CODES.clean;
   }

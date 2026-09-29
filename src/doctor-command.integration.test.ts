@@ -32,7 +32,8 @@ describe('runCommand', () => {
     const { code, stdout, stderr } = await run(...args);
 
     expect(code).toBe(EXIT_CODES.clean);
-    expect(stdout).toContain('Usage: exadev-config doctor [--cwd <directory>] [--section <name>]...');
+    expect(stdout).toContain('Usage: exadev-config doctor [--cwd <directory>] [--section <name>]... [--require-config]');
+    expect(stdout).toContain('--require-config');
     expect(stderr).toBe('');
   });
 
@@ -59,13 +60,38 @@ describe('runCommand', () => {
       expect(await run('doctor', '--cwd', cwd)).toEqual({ code: EXIT_CODES.clean, stdout: '', stderr: '' });
     });
 
-    it.each([[{}], [{ 'exadev.config.ts': 'export default undefined;\n' }]])('says there is nothing to check, and succeeds, when there is no unified config: %j', async (files) => {
-      const cwd = makeProject(files);
-      const { code, stdout, stderr } = await run('doctor', '--cwd', cwd);
+    it('says no exadev config file was found and nothing was checked, and still succeeds, when the directory has none', async () => {
+      const cwd = makeProject({});
 
-      expect(code).toBe(EXIT_CODES.clean);
-      expect(stdout).toBe(`${cwd}: nothing to check, since exadev.config.ts is absent or empty there. The command does not search parent directories.\n`);
-      expect(stderr).toBe('');
+      expect(await run('doctor', '--cwd', cwd)).toEqual({
+        code: EXIT_CODES.clean,
+        stdout: `${cwd}: no exadev config file was found in this directory, so nothing was checked. The command does not search parent directories.\n`,
+        stderr: '',
+      });
+    });
+
+    it('says the config file is empty and nothing was checked, and succeeds, even with --require-config', async () => {
+      const cwd = makeProject({ 'exadev.config.ts': 'export default undefined;\n' });
+      const stdout = `${cwd}: the exadev config file in this directory is empty, so nothing was checked.\n`;
+
+      expect(await run('doctor', '--cwd', cwd)).toEqual({ code: EXIT_CODES.clean, stdout, stderr: '' });
+      expect(await run('doctor', '--cwd', cwd, '--require-config')).toEqual({ code: EXIT_CODES.clean, stdout, stderr: '' });
+    });
+
+    it('exits with the failure code and writes the same message to stderr under --require-config when the directory has no config file', async () => {
+      const cwd = makeProject({});
+
+      expect(await run('doctor', '--cwd', cwd, '--require-config')).toEqual({
+        code: EXIT_CODES.failed,
+        stdout: '',
+        stderr: `${cwd}: no exadev config file was found in this directory, so nothing was checked. The command does not search parent directories.\n`,
+      });
+    });
+
+    it('does not fail under --require-config when a config file exists', async () => {
+      const cwd = makeProject({ 'exadev.config.ts': 'export default { layout: {} };\n' });
+
+      expect(await run('doctor', '--cwd', cwd, '--require-config')).toEqual({ code: EXIT_CODES.clean, stdout: '', stderr: '' });
     });
 
     it('reports each unowned section on stderr with the known ones, and exits 1', async () => {

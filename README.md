@@ -129,15 +129,22 @@ import { doctor } from '@exadev/config';
 
 const report = await doctor({ cwd: process.cwd(), listed: ['myTool'] });
 // report.unowned lists the keys of exadev.config.ts that no installed or listed tool owns.
+// report.outcome is 'checked', 'empty' (the file exists but exports undefined) or 'no-config-file'; the last two mean nothing was checked, so an empty report.unowned is not a clean result.
 ```
 
 A key is owned when it is `layout`, when a dependency of the project's `package.json` declares it in its `exadevConfig.sections`, or when the project's own `package.json` declares it (a tool repository dogfooding its section), or when it appears in `listed`. Keys of `exadevConfig` other than `sections` are ignored, so a later manifest version does not break an older `doctor`. A dependency is looked for in the `node_modules` directories from `cwd` upwards. The command wraps the same function:
 
 ```sh
-exadev-config doctor [--cwd <directory>] [--section <name>]...
+exadev-config doctor [--cwd <directory>] [--section <name>]... [--require-config]
 ```
 
-It exits 0 when every section is owned, 1 when some is not, and 2 when it could not run, which includes a missing command, a `--cwd` that is not a directory and a config that fails to load. A directory with no `exadev.config.ts` (or an empty one) is not searched upward: the command says there is nothing to check and exits 0, so run it where the file is. `exadev-config --help` and `exadev-config doctor --help` print the usage.
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Every section is owned. Also the result when nothing was checked: the command then says so, either that no exadev config file was found in the directory or that the file is empty. |
+| 1 | Some section is not owned. |
+| 2 | The command could not run: a missing command, a `--cwd` that is not a directory, a config that fails to load, or, with `--require-config`, a directory with no exadev config file. |
+
+The directory is not searched upward, so run the command where the file is. `--require-config` turns the no-file case into a failure for a script that must not pass without a config; an empty file still exits 0 with its message. `exadev-config --help` and `exadev-config doctor --help` print the usage.
 
 ## Development
 

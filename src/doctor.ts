@@ -63,19 +63,15 @@ export interface DoctorOptions extends ConfigFileOptions {
 }
 
 /**
- * What {@link doctor} found.
+ * The fields of a {@link DoctorReport} that do not depend on whether a config was checked.
  */
-export interface DoctorReport {
+interface DoctorReportFields {
   /**
-   * The unified config file that was read (`exadev.config.ts`, or the same with the extension `.mts` or `.cts`), or `undefined` when the directory has none or the file is empty.
-   */
-  readonly file: string | undefined;
-  /**
-   * The top-level keys the file defines after `extends` is applied, in merge order: the keys of a preset come before the keys only the file itself defines.
+   * The top-level keys the file defines after `extends` is applied, in merge order: the keys of a preset come before the keys only the file itself defines. Empty when nothing was checked.
    */
   readonly defined: readonly string[];
   /**
-   * The keys in {@link DoctorReport.defined} that no installed or listed tool owns. Every tool ignores such a key, so it is a misspelt name or a tool that is not installed.
+   * The keys in {@link DoctorReportFields.defined} that no installed or listed tool owns. Every tool ignores such a key, so it is a misspelt name or a tool that is not installed. Empty when nothing was checked, which is not the same as every section being owned: test {@link DoctorReport.outcome} first.
    */
   readonly unowned: readonly string[];
   /**
@@ -83,6 +79,30 @@ export interface DoctorReport {
    */
   readonly known: readonly string[];
 }
+
+/**
+ * The report for a unified config file that was read and defines its keys.
+ */
+export interface CheckedDoctorReport extends DoctorReportFields {
+  readonly outcome: 'checked';
+  /**
+   * The unified config file that was read: `exadev.config.ts`, or the same with the extension `.mts` or `.cts`.
+   */
+  readonly file: string;
+}
+
+/**
+ * The report when nothing was checked: `'no-config-file'` when the directory has no unified config file, `'empty'` when the file exists but its default export is `undefined`.
+ */
+export interface UncheckedDoctorReport extends DoctorReportFields {
+  readonly outcome: 'no-config-file' | 'empty';
+  readonly file: undefined;
+}
+
+/**
+ * What {@link doctor} found. Discriminated by `outcome`: a checked config carries its `file`, and a directory with no config file, or with an empty one, is reported as such instead of as a config in which every section is owned.
+ */
+export type DoctorReport = CheckedDoctorReport | UncheckedDoctorReport;
 
 function readJson(file: string): unknown {
   const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
@@ -131,7 +151,7 @@ function installedSections(cwd: string): readonly string[] {
 }
 
 /**
- * Report the sections in the unified config file of `cwd` that no installed or listed tool owns.
+ * Report the sections in the unified config file of `cwd` that no installed or listed tool owns. A directory with no such file is not an error and is not searched upward: the report's {@link DoctorReport.outcome} is `'no-config-file'`, so a caller can tell that from a checked config with nothing unowned.
  *
  * Typing cannot catch these: a section for a tool that is not installed, or under a misspelt name, is simply ignored by every tool. A section is owned when it is `layout`, when a dependency of the project in `cwd` declares it through {@link MANIFEST_FIELD}, or when it is in `options.listed`.
  *
@@ -140,16 +160,15 @@ function installedSections(cwd: string): readonly string[] {
 export async function doctor(options: DoctorOptions): Promise<DoctorReport> {
   assertDirectory(options.cwd);
   const known = [...new Set([layoutSection.name, ...installedSections(options.cwd), ...(options.listed ?? [])])].sort();
-  const nothingDefined: DoctorReport = { file: undefined, defined: [], unowned: [], known };
   const file = findConfigFile(options.cwd, UNIFIED_BASE);
   if (file === undefined) {
-    return nothingDefined;
+    return { outcome: 'no-config-file', file: undefined, defined: [], unowned: [], known };
   }
   const config = await readUnifiedFile(file, options);
   if (config === undefined) {
-    return nothingDefined;
+    return { outcome: 'empty', file: undefined, defined: [], unowned: [], known };
   }
   const defined = Object.keys(config);
 
-  return { file, defined, unowned: defined.filter((name) => !known.includes(name)), known };
+  return { outcome: 'checked', file, defined, unowned: defined.filter((name) => !known.includes(name)), known };
 }
