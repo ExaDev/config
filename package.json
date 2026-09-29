@@ -6,8 +6,8 @@
     "exadev-config": "./dist/cli.js"
   },
   "dependencies": {
-    "@standard-schema/spec": "1.1.0",
-    "cosmiconfig-extends": "1.0.0"
+    "@standard-schema/spec": "^1.1.0",
+    "cosmiconfig-extends": "^1.0.0"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
