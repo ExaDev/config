@@ -1,7 +1,7 @@
 {
   "name": "@exadev/config",
   "description": "The unified exadev.config.ts: typed sections contributed by tools, resolved from one file or a standalone file per tool",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "bin": {
     "exadev-config": "./dist/cli.js"
   },

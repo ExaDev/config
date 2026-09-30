@@ -1,3 +1,11 @@
+# [1.1.0](https://github.com/ExaDev/config/compare/v1.0.0...v1.1.0) (2026-09-30)
+
+
+### Features
+
+* reject invalid literal section names at compile time ([928298c](https://github.com/ExaDev/config/commit/928298c68bd67b7a6116fc2d59aea663315cdd97))
+* report a missing config file in doctor and add --require-config ([f7f1e66](https://github.com/ExaDev/config/commit/f7f1e66a66efa3a8713e043b8baa9462615fb47b))
+
 # 1.0.0 (2026-09-29)
 
 
