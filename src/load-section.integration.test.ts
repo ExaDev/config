@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { ConfigValidationError, type Merge } from 'cosmiconfig-extends';
@@ -278,6 +279,14 @@ describe('loadSection', () => {
       const options = { cwd, extendsKey: 'inherits' };
 
       expect(await loadSection(toolA, options)).toEqual({ include: ['local'], level: 'low' });
+    });
+
+    it('passes the fsCache it is given to jiti, which writes its transpile cache there', async () => {
+      const cwd = makeProject({ 'exadev.config.ts': unified() });
+      const fsCache = join(cwd, 'transpile-cache');
+
+      expect(await loadSection(toolA, { cwd, fsCache })).toEqual({ include: ['src'], level: 'low' });
+      expect(readdirSync(fsCache)).not.toHaveLength(0);
     });
   });
 
