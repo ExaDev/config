@@ -164,6 +164,6 @@ CI also runs `pnpm exec publint` and `pnpm exec attw --pack` after the build, an
 
 The authoring type checks are tests: `test/types/authoring-types.integration.test.ts` compiles the files in `test/types/fixtures/cases` with the TypeScript compiler API and asserts the exact errors each one produces, so a change that loosens the types fails a test instead of passing silently.
 
-CI selects its runner with `ExaDev/runner-fallback-action` (self-hosted fleet first, Blacksmith as fallback). The release job stays on a GitHub-hosted runner because npm trusted publishing needs one, and publishes with provenance through OIDC, with no stored token.
+CI selects its runner with `ExaDev/runner-fallback-action` (self-hosted fleet first, Blacksmith as fallback). The release job stays on a GitHub-hosted runner because npm trusted publishing needs one, and publishes with provenance through OIDC, with no stored token. The release commit and tag are pushed over SSH with a repository deploy key (the `RELEASE_DEPLOY_KEY` secret), because the default `GITHUB_TOKEN` cannot bypass the `main` ruleset; `release.config.ts` therefore uses the SSH form of `repositoryUrl`.
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org); semantic-release derives the version from them.
