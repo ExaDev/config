@@ -17,9 +17,11 @@ export const UNIFIED_BASE = 'exadev';
 export const CONFIG_EXTENSIONS = ['.ts', '.mts', '.cts'] as const;
 
 /**
- * How config files are loaded, passed to `cosmiconfig-extends`: the authoring-import `alias`, jiti's `fsCache`, the `trust` policy for `extends` references (local paths only by default), and the `merge` that combines a file with the presets it extends (arrays replace by default).
+ * How config files are loaded, passed to `cosmiconfig-extends`: the authoring-import `alias`, jiti's `fsCache`, the `trust` policy for `extends` references (local paths only by default), the `merge` that combines a file with the presets it extends (arrays replace by default), and the `presetSchema` that validates each preset before it is merged, so a failure names the preset as `preset '<ref>'` (none by default).
+ *
+ * `merge` and `presetSchema` see the layers of whichever file is read: for the unified file each preset is a whole config file, and for a standalone file it is a value of that file's section. `presetSchema`'s output replaces the preset, so it must keep the `extends` key and apply no defaults. The config file itself is not a preset; its section is checked by the section's own schema.
  */
-export type ConfigFileOptions = Pick<ExplorerOptions, 'alias' | 'fsCache' | 'merge' | 'trust'>;
+export type ConfigFileOptions = Pick<ExplorerOptions, 'alias' | 'fsCache' | 'merge' | 'presetSchema' | 'trust'>;
 
 /**
  * Throw unless `directory` is an existing directory, so a mistyped directory is an error rather than a directory with no config.
@@ -81,12 +83,13 @@ function requireDefaultExport(loader: Loader): Loader {
  * Exactly the {@link ConfigFileOptions} of `options`. A caller's options object is usually wider (it carries `cwd` at least), and spreading it whole into the explorer would let any other key cosmiconfig-extends reads, such as `extendsKey` or `schema`, change how files load without the type admitting it.
  */
 function configFileOptions(options: ConfigFileOptions): ConfigFileOptions {
-  const { alias, fsCache, merge, trust } = options;
+  const { alias, fsCache, merge, presetSchema, trust } = options;
 
   return {
     ...(alias === undefined ? {} : { alias }),
     ...(fsCache === undefined ? {} : { fsCache }),
     ...(merge === undefined ? {} : { merge }),
+    ...(presetSchema === undefined ? {} : { presetSchema }),
     ...(trust === undefined ? {} : { trust }),
   };
 }

@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import { makeProject } from '../test/support/project';
 
@@ -179,6 +180,17 @@ describe('doctor', () => {
 
     await expect(doctor({ cwd })).rejects.toThrow(/untrusted/);
     expect((await doctor({ cwd, trust: () => true })).defined).toEqual(['fromShared']);
+  });
+
+  it('validates each preset with the presetSchema it is given, naming the preset that fails', async () => {
+    const cwd = makeProject({
+      'preset.ts': 'export default { layout: 1 };\n',
+      'exadev.config.ts': "export default { extends: './preset.ts' };\n",
+    });
+    const presetSchema = z.looseObject({ extends: z.unknown().optional(), layout: z.object({}).optional() });
+
+    await expect(doctor({ cwd, presetSchema })).rejects.toThrow(/^invalid preset '\.\/preset\.ts':\n {2}layout: /);
+    expect((await doctor({ cwd })).defined).toEqual(['layout']);
   });
 
   it('owns a section the project itself declares, as a tool repository does for the section it dogfoods', async () => {

@@ -52,7 +52,7 @@ async function fromStandalone(name: string, cwd: string, options: ConfigFileOpti
  *
  * The section comes from `exadev.config.ts` (its key `section.name`) or from `exadev.<section.name>.config.ts`, both in `cwd`; either may instead use the extension `.mts` or `.cts`, and a file that exists under more than one extension throws. Neither file is searched for in a parent directory. Both are evaluated with `extends` applied, so a section that reaches the unified file through a preset counts as defined there. A section defined in both files throws an error naming both, since choosing one silently would hide a configuration that never takes effect. The result is the schema's output, and is `undefined` when neither file defines the section.
  *
- * Throws `ConfigValidationError` (re-exported by this package, so a caller can test for it with `instanceof`) when the section fails the schema, a `TypeError` when the unified file exports something other than an object, and an `Error` when `cwd` is not an existing directory.
+ * Throws `ConfigValidationError` (re-exported by this package, so a caller can test for it with `instanceof`) when the section fails the schema or a preset fails `options.presetSchema` (the message then names the preset by its `extends` reference), a `TypeError` when the unified file exports something other than an object, and an `Error` when `cwd` is not an existing directory.
  */
 export async function loadSection<Name extends string, Schema extends StandardSchemaV1>(
   section: Section<Name, Schema>,

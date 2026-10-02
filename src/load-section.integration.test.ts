@@ -18,6 +18,25 @@ function isArray(value: unknown): value is readonly unknown[] {
   return Array.isArray(value);
 }
 
+/**
+ * A layer of `toolA` as a preset may supply it: every field optional and no default, since a default would turn "no opinion" into an override.
+ */
+const toolALayer = z.strictObject({ include: z.array(z.string()).optional(), level: z.enum(['low', 'high']).optional() });
+
+/**
+ * A preset of the unified file: a whole config file, which must keep its `extends` key for the chain to continue.
+ */
+const unifiedPreset = z.looseObject({ extends: z.unknown().optional(), toolA: toolALayer.optional() });
+
+/**
+ * A preset of the standalone `toolA` file: a section value, which carries the `extends` key itself.
+ */
+const standalonePreset = toolALayer.extend({ extends: z.unknown().optional() });
+
+function escapeRegExp(text: string): string {
+  return text.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`);
+}
+
 const SECTION = "{ include: ['src'] }";
 
 function unified(section: string = SECTION): string {
@@ -287,6 +306,71 @@ describe('loadSection', () => {
 
       expect(await loadSection(toolA, { cwd, fsCache })).toEqual({ include: ['src'], level: 'low' });
       expect(readdirSync(fsCache)).not.toHaveLength(0);
+    });
+
+    describe('presetSchema', () => {
+      const invalidPreset = {
+        'preset.ts': "export default { toolA: { include: ['preset'], bogus: true } };\n",
+        'exadev.config.ts': "export default { extends: './preset.ts', toolA: { level: 'high' } };\n",
+      };
+
+      it('rejects a preset of the unified file that fails it, naming the preset file as the extends value spells it', async () => {
+        const cwd = makeProject(invalidPreset);
+        const failure: unknown = await loadSection(toolA, { cwd, presetSchema: unifiedPreset }).catch((error: unknown) => error);
+
+        expect(failure).toBeInstanceOf(ConfigValidationError);
+        expect(failure).toHaveProperty('message', expect.stringMatching(/^invalid preset '\.\/preset\.ts':\n/));
+        expect(failure).toHaveProperty('issues', [{ path: ['toolA'], message: 'Unrecognized key: "bogus"' }]);
+      });
+
+      it('names the preset that fails it at any depth, by the reference the file extending it wrote', async () => {
+        const cwd = makeProject({
+          'presets/base.ts': "export default { toolA: { bogus: true } };\n",
+          'presets/team.ts': "export default { extends: './base.ts', toolA: { include: ['team'] } };\n",
+          'exadev.config.ts': "export default { extends: './presets/team.ts' };\n",
+        });
+
+        await expect(loadSection(toolA, { cwd, presetSchema: unifiedPreset })).rejects.toThrow(/^invalid preset '\.\/base\.ts':\n/);
+      });
+
+      it('validates the presets of a standalone file, which are section values', async () => {
+        const cwd = makeProject({
+          'base.ts': "export default { include: ['base'], bogus: true };\n",
+          'exadev.toolA.config.ts': "export default { extends: './base.ts' };\n",
+        });
+
+        const failure: unknown = await loadSection(toolA, { cwd, presetSchema: standalonePreset }).catch((error: unknown) => error);
+
+        expect(failure).toBeInstanceOf(ConfigValidationError);
+        expect(failure).toHaveProperty('message', expect.stringMatching(/^invalid preset '\.\/base\.ts':\n/));
+        expect(failure).toHaveProperty('issues', [{ path: [], message: 'Unrecognized key: "bogus"' }]);
+      });
+
+      it('merges the output of a preset that passes it in place of the preset', async () => {
+        const cwd = makeProject({
+          'preset.ts': "export default { toolA: { include: ['preset'], level: 'high' } };\n",
+          'exadev.config.ts': "export default { extends: './preset.ts', toolA: { include: ['local'] } };\n",
+        });
+        const lowered = z.looseObject({ extends: z.unknown().optional(), toolA: toolALayer.transform((layer) => ({ ...layer, level: 'low' })).optional() });
+
+        expect(await loadSection(toolA, { cwd, presetSchema: lowered })).toEqual({ include: ['local'], level: 'low' });
+      });
+
+      it('does not validate the config file itself, whose section the section schema checks', async () => {
+        const cwd = makeProject({ 'exadev.config.ts': unified("{ include: ['src'], bogus: true }") });
+
+        await expect(loadSection(toolA, { cwd, presetSchema: unifiedPreset })).rejects.toThrow(`invalid 'toolA' section in ${join(cwd, 'exadev.config.ts')}:`);
+      });
+
+      it('leaves presets unvalidated when absent, so a bad preset is reported as the section of the file that extends it', async () => {
+        const cwd = makeProject(invalidPreset);
+
+        const failure: unknown = await loadSection(toolA, { cwd }).catch((error: unknown) => error);
+
+        expect(failure).toBeInstanceOf(ConfigValidationError);
+        expect(failure).toHaveProperty('message', expect.stringMatching(new RegExp(`^invalid 'toolA' section in ${escapeRegExp(join(cwd, 'exadev.config.ts'))}:\\n`)));
+        expect(failure).toHaveProperty('issues', [{ path: [], message: 'Unrecognized key: "bogus"' }]);
+      });
     });
   });
 
