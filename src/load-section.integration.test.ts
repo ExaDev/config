@@ -268,6 +268,17 @@ describe('loadSection', () => {
 
       expect(await loadSection(toolA, { cwd, merge })).toEqual({ include: ['preset', 'local'], level: 'low' });
     });
+
+    it('passes cosmiconfig-extends only the options it declares, so an undeclared one changes nothing', async () => {
+      const cwd = makeProject({
+        'preset.ts': "export default { toolA: { include: ['preset'], level: 'high' } };\n",
+        'exadev.config.ts': "export default { inherits: './preset.ts', toolA: { include: ['local'] } };\n",
+      });
+      // Not an object literal, so the excess property is not a compile error: the shape a caller reaches with a wider options object.
+      const options = { cwd, extendsKey: 'inherits' };
+
+      expect(await loadSection(toolA, options)).toEqual({ include: ['local'], level: 'low' });
+    });
   });
 
   describe('authoring files', () => {
