@@ -1,3 +1,15 @@
+# [1.2.0](https://github.com/ExaDev/config/compare/v1.1.3...v1.2.0) (2026-10-02)
+
+
+### Bug Fixes
+
+* **config-file:** pass cosmiconfig-extends only the declared loading options ([1d2ebf7](https://github.com/ExaDev/config/commit/1d2ebf727bad10de8977bf1c39bea712f15e5bdc))
+
+
+### Features
+
+* **config-file:** accept a presetSchema that validates each preset ([e7abff6](https://github.com/ExaDev/config/commit/e7abff6579ab44822c3a6ecc5247b6fc9232a0f8))
+
 ## [1.1.3](https://github.com/ExaDev/config/compare/v1.1.2...v1.1.3) (2026-10-02)
 
 ## [1.1.2](https://github.com/ExaDev/config/compare/v1.1.1...v1.1.2) (2026-10-02)
