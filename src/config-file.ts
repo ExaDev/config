@@ -78,12 +78,27 @@ function requireDefaultExport(loader: Loader): Loader {
 }
 
 /**
+ * Exactly the {@link ConfigFileOptions} of `options`. A caller's options object is usually wider (it carries `cwd` at least), and spreading it whole into the explorer would let any other key cosmiconfig-extends reads, such as `extendsKey` or `schema`, change how files load without the type admitting it.
+ */
+function configFileOptions(options: ConfigFileOptions): ConfigFileOptions {
+  const { alias, fsCache, merge, trust } = options;
+
+  return {
+    ...(alias === undefined ? {} : { alias }),
+    ...(fsCache === undefined ? {} : { fsCache }),
+    ...(merge === undefined ? {} : { merge }),
+    ...(trust === undefined ? {} : { trust }),
+  };
+}
+
+/**
  * The evaluated content of the config file at `file` after `extends` is applied, or `undefined` when the file is empty or has `undefined` as its default export. Throws when the file does not export a default value. Every call reads the file afresh, because it builds an explorer of its own and so shares no cache.
  */
 export async function readConfigFile(file: string, options: ConfigFileOptions): Promise<unknown> {
-  const checked = requireDefaultExport(createJitiLoader(options).loader);
+  const declared = configFileOptions(options);
+  const checked = requireDefaultExport(createJitiLoader(declared).loader);
   const explorer = createExplorer(UNIFIED_BASE, {
-    ...options,
+    ...declared,
     cosmiconfig: { loaders: { '.ts': checked, '.mts': checked, '.cts': checked } },
   });
   const result = await explorer.load(file);
