@@ -177,15 +177,15 @@ jobs:
       pull-requests: write # to comment on released pull requests
       id-token: write # OIDC identity for npm trusted publishing and provenance (no NPM_TOKEN)
     steps:
-      # Once main's ruleset exists it requires the "Required Checks" status and blocks direct pushes (it is created by the repository owner after this workflow has released), and the default GITHUB_TOKEN cannot bypass a repository ruleset (GitHub does not support naming the github-actions[bot] identity as a bypass actor), so semantic-release's release commit and tag push needs a bypass identity. A deploy key with write access, added as a DeployKey bypass actor on the ruleset, is the lightest one: repo-scoped, with no GitHub App installation to manage and no personal or org-admin credential involved. The key is provisioned only for the semantic-release step (see "Provision the release deploy key"), never at checkout: checkout with ssh-key and persist-credentials would write the key path into git config before pnpm/action-setup, setup-node, the dependency install and the npm upgrade run, and any of those running compromised code as the same job user could read it and exfiltrate a credential able to push straight to main.
-      - uses: actions/checkout@v7
+      # Once main's ruleset exists it requires the "Required Checks" status and blocks direct pushes (it is created by the repository owner after this workflow has released), and the default GITHUB_TOKEN cannot bypass a repository ruleset (GitHub does not support naming the github-actions[bot] identity as a bypass actor), so semantic-release's release commit and tag push needs a bypass identity. A deploy key with write access, added as a DeployKey bypass actor on the ruleset, is the lightest one: repo-scoped, with no GitHub App installation to manage and no personal or org-admin credential involved. The key is provisioned only for the semantic-release step (see "Provision the release deploy key"), never at checkout: checkout with ssh-key and persist-credentials would write the key path into git config before pnpm/action-setup, setup-node, the dependency install and the npm upgrade run, leaving it readable to any of them for the whole job. Keeping it out of git config narrows the exposure but does not remove it: the runner reaps orphan processes only when the job ends, so a background process started by an earlier step could still watch for the key file to appear, or read the secret from the provisioning step's environment. The third-party actions in this job are therefore pinned to full commit SHAs (the tag is kept as a comment), so a moved tag cannot run new code ahead of the key, and the dependency install remains the residual exposure.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # semantic-release analyses the full commit history since the last release.
           fetch-depth: 0
           # No ssh-key and no persisted token: checkout fetches over https with the job token, which is enough to read the full history, and leaves no credential in git config for later steps.
           persist-credentials: false
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: '22'
           cache: pnpm
