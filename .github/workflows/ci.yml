@@ -90,6 +90,68 @@ jobs:
       - run: pnpm exec publint
       - run: pnpm exec attw --pack
 
+  actionlint:
+    name: Actionlint
+    needs: determine-runner
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.selected-runner) }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # actionlint and the shellcheck it runs on every `run:` script, each at an exact version and each archive checked against the SHA-256 committed here before it is unpacked. The digests match actionlint's release checksums file and the asset digests GitHub records for both releases. shellcheck is installed rather than taken from the runner, because the fleet image has none and actionlint silently skips script checks without it. The fleet is linux/arm64 and Blacksmith linux/x64, so the archive follows the runner.
+      - name: Install actionlint and shellcheck
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          SHELLCHECK_VERSION: 0.11.0
+        run: |
+          case "$RUNNER_ARCH" in
+            X64)
+              actionlint_arch=amd64 actionlint_sha256=8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+              shellcheck_arch=x86_64 shellcheck_sha256=b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6
+              ;;
+            ARM64)
+              actionlint_arch=arm64 actionlint_sha256=325e971b6ba9bfa504672e29be93c24981eeb1c07576d730e9f7c8805afff0c6
+              shellcheck_arch=aarch64 shellcheck_sha256=68a8133197a50beb8803f8d42f9908d1af1c5540d4bb05fdfca8c1fa47decefc
+              ;;
+            *)
+              echo "::error::No pinned actionlint or shellcheck build for runner architecture $RUNNER_ARCH"
+              exit 1
+              ;;
+          esac
+          tools="$RUNNER_TEMP/workflow-linters"
+          mkdir -p "$tools"
+          cd "$tools"
+          actionlint_archive="actionlint_${ACTIONLINT_VERSION}_linux_${actionlint_arch}.tar.gz"
+          shellcheck_archive="shellcheck-v${SHELLCHECK_VERSION}.linux.${shellcheck_arch}.tar.gz"
+          curl -fsSLo "$actionlint_archive" "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${actionlint_archive}"
+          curl -fsSLo "$shellcheck_archive" "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/${shellcheck_archive}"
+          printf '%s  %s\n' "$actionlint_sha256" "$actionlint_archive" "$shellcheck_sha256" "$shellcheck_archive" | sha256sum --check --strict
+          tar -xzf "$actionlint_archive" actionlint
+          tar -xzf "$shellcheck_archive" --strip-components=1 "shellcheck-v${SHELLCHECK_VERSION}/shellcheck"
+          echo "$tools" >> "$GITHUB_PATH"
+      # With no file arguments actionlint lints every workflow in the repository's own .github/workflows.
+      - name: Lint every workflow
+        run: actionlint -config-file .github/actionlint.yaml
+
+  zizmor:
+    name: Zizmor
+    needs: determine-runner
+    runs-on: ${{ fromJson(needs.determine-runner.outputs.selected-runner) }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # uvx rather than zizmorcore/zizmor-action: the action runs zizmor's container image and fails without a Docker daemon, which the fleet's runner pods do not have. setup-uv checks the uv download against its published checksum, and uv fetches a Python for zizmor's environment if the runner has none.
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: 0.12.19
+          enable-cache: false
+      # Offline, so the result never depends on whether a token happens to be in the environment: the online audits (impostor commits, known-vulnerable actions, ref confusion) only run with one. Every workflow, composite action and the Dependabot configuration in the repository is audited.
+      - name: Audit every workflow and action
+        run: uvx zizmor@1.30.1 --offline --config .github/zizmor.yml --no-progress .
+
   mutation:
     name: Mutation
     # Manual only: run it from the Actions tab (workflow_dispatch) when a change warrants a full mutation pass. It is not a required check and does not gate a release.
@@ -159,7 +221,7 @@ jobs:
 
   required-checks:
     name: Required Checks
-    needs: [determine-runner, commitlint, lint, typecheck, package]
+    needs: [determine-runner, commitlint, lint, typecheck, package, actionlint, zizmor]
     # Always runs, even if a dependency failed, so it reports that failure itself rather than being skipped: a required check that is silently absent blocks a PR indefinitely instead of failing it visibly.
     if: always()
     runs-on: ${{ fromJson(needs.determine-runner.outputs.selected-runner) }}
@@ -205,7 +267,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Upgrade npm for OIDC trusted publishing (needs npm CLI >=11.5.1)
         # Pinned, not npm@latest: a moved dist-tag must not run new code in a job that goes on to hold a push credential. On the 11 line rather than 12 because 12 raises the Node engine floor, and any 11.x from 11.5.1 supports OIDC trusted publishing. Bump deliberately to a release at least a week old (the release-age gate), never below 11.5.1.
-        run: npm install -g npm@11.19.1
+        # zizmor's adhoc-packages audit flags any install outside a lockfile; this one is a single exact version, chosen and raised deliberately as the comment above says, so it is ignored here rather than in the whole repository.
+        run: npm install -g npm@11.19.1 # zizmor: ignore[adhoc-packages]
       # Immediately before semantic-release, with no third-party action between them, so the key exists on disk only for the steps that need it. GIT_SSH_COMMAND is set in the env of only the steps that need it, not exported to the job. The secret reaches the step only through env (never a command line or echo) and is written with mode 600 under runner.temp. The pinned host key is GitHub's published ed25519 key (https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints, fingerprint SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU, checked against https://api.github.com/meta), so StrictHostKeyChecking=yes needs no trust on first use. The dry-run push proves write access before semantic-release runs, using the exact check semantic-release's own verifyAuth makes (git push --dry-run --no-verify to the repository's main branch, which opens git-receive-pack). A read-only deploy key, or any other key GitHub recognises, passes git ls-remote on a public repository but fails here. Without this step semantic-release would swallow that failure and fall back to an https URL with GITHUB_TOKEN embedded, and the ruleset would then reject the real push late and obscurely. The GIT_SSH_COMMAND value is repeated in the Release step's env and the two must stay identical: a job-level value would expose the key path to every step.
       - name: Provision the release deploy key
         env:
