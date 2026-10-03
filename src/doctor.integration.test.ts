@@ -1,11 +1,13 @@
 import { join } from 'node:path';
 
+import type { Merge } from 'cosmiconfig-extends';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { makeProject } from '../test/support/project';
 
 import { doctor, MANIFEST_FIELD } from './doctor';
+import { isRecord } from './validation';
 
 function installed(name: string, manifest: Record<string, unknown> = {}): Record<string, string> {
   return { [`node_modules/${name}/package.json`]: JSON.stringify({ name, version: '1.0.0', ...manifest }) };
@@ -182,15 +184,27 @@ describe('doctor', () => {
     expect((await doctor({ cwd, trust: () => true })).defined).toEqual(['fromShared']);
   });
 
-  it('validates each preset with the presetSchema it is given, naming the preset that fails', async () => {
+  it('validates each preset with the unified presetSchema it is given, naming the preset that fails', async () => {
     const cwd = makeProject({
       'preset.ts': 'export default { layout: 1 };\n',
       'exadev.config.ts': "export default { extends: './preset.ts' };\n",
     });
     const presetSchema = z.looseObject({ extends: z.unknown().optional(), layout: z.object({}).optional() });
 
-    await expect(doctor({ cwd, presetSchema })).rejects.toThrow(/^invalid preset '\.\/preset\.ts':\n {2}layout: /);
+    await expect(doctor({ cwd, unified: { presetSchema } })).rejects.toThrow(/^invalid preset '\.\/preset\.ts':\n {2}layout: /);
     expect((await doctor({ cwd })).defined).toEqual(['layout']);
+  });
+
+  it('combines the layers of the unified file with the unified merge it is given', async () => {
+    const cwd = makeProject({
+      'preset.ts': 'export default { layout: {}, fromPreset: {} };\n',
+      'exadev.config.ts': "export default { extends: './preset.ts', local: {} };\n",
+    });
+    // Keeps only the keys the later layer names, so a key only a preset supplies is not defined.
+    const merge: Merge = (base, override) => (isRecord(base) && isRecord(override) ? { ...override } : override);
+
+    expect((await doctor({ cwd, unified: { merge } })).defined).toEqual(['local']);
+    expect((await doctor({ cwd })).defined).toEqual(['layout', 'fromPreset', 'local']);
   });
 
   it('owns a section the project itself declares, as a tool repository does for the section it dogfoods', async () => {

@@ -17,11 +17,21 @@ export const UNIFIED_BASE = 'exadev';
 export const CONFIG_EXTENSIONS = ['.ts', '.mts', '.cts'] as const;
 
 /**
- * How config files are loaded, passed to `cosmiconfig-extends`: the authoring-import `alias`, jiti's `fsCache`, the `trust` policy for `extends` references (local paths only by default), the `merge` that combines a file with the presets it extends (arrays replace by default), and the `presetSchema` that validates each preset before it is merged, so a failure names the preset as `preset '<ref>'` (none by default).
- *
- * `merge` and `presetSchema` see the layers of whichever file is read: for the unified file each preset is a whole config file, and for a standalone file it is a value of that file's section. `presetSchema`'s output replaces the preset, so it must keep the `extends` key and apply no defaults. The config file itself is not a preset; its section is checked by the section's own schema.
+ * How config files are loaded, passed to `cosmiconfig-extends` for every file read: the authoring-import `alias`, jiti's `fsCache`, and the `trust` policy for `extends` references (local paths only by default). How a file's layers are checked and combined depends on its shape, so it is given per shape as {@link LayerOptions}.
  */
-export type ConfigFileOptions = Pick<ExplorerOptions, 'alias' | 'fsCache' | 'merge' | 'presetSchema' | 'trust'>;
+export type ConfigFileOptions = Pick<ExplorerOptions, 'alias' | 'fsCache' | 'trust'>;
+
+/**
+ * The shape of a config file a section is read from: `unified` is `exadev.config.<extension>`, which holds the section under its name beside other tools' sections, and `standalone` is `exadev.<name>.config.<extension>`, whose default export is the section value itself.
+ */
+export type ConfigFileShape = 'unified' | 'standalone';
+
+/**
+ * How the layers of one file shape are checked and combined, passed to `cosmiconfig-extends`: the `merge` that folds a file and the presets it extends, deepest base first and the file last (arrays replace by default), and the `presetSchema` that validates each preset before it is merged, so a failure names the preset as `preset '<ref>'` (none by default).
+ *
+ * Both see the layers of one shape only. For the unified file each layer is a whole config file; for a standalone file it is a value of that file's section, with the preset's `extends` key beside its fields. `presetSchema`'s output replaces the preset, so it must keep the `extends` key and apply no defaults. The config file itself is not a preset; its section is checked by the section's own schema.
+ */
+export type LayerOptions = Pick<ExplorerOptions, 'merge' | 'presetSchema'>;
 
 /**
  * Throw unless `directory` is an existing directory, so a mistyped directory is an error rather than a directory with no config.
@@ -80,10 +90,11 @@ function requireDefaultExport(loader: Loader): Loader {
 }
 
 /**
- * Exactly the {@link ConfigFileOptions} of `options`. A caller's options object is usually wider (it carries `cwd` at least), and spreading it whole into the explorer would let any other key cosmiconfig-extends reads, such as `extendsKey` or `schema`, change how files load without the type admitting it.
+ * Exactly the {@link ConfigFileOptions} of `options` and the {@link LayerOptions} of `layers`. A caller's objects are usually wider (the options carry `cwd` at least), and spreading one whole into the explorer would let any other key cosmiconfig-extends reads, such as `extendsKey` or `schema`, change how files load without the type admitting it.
  */
-function configFileOptions(options: ConfigFileOptions): ConfigFileOptions {
-  const { alias, fsCache, merge, presetSchema, trust } = options;
+function explorerOptions(options: ConfigFileOptions, layers: LayerOptions | undefined): ConfigFileOptions & LayerOptions {
+  const { alias, fsCache, trust } = options;
+  const { merge, presetSchema } = { ...layers };
 
   return {
     ...(alias === undefined ? {} : { alias }),
@@ -95,10 +106,10 @@ function configFileOptions(options: ConfigFileOptions): ConfigFileOptions {
 }
 
 /**
- * The evaluated content of the config file at `file` after `extends` is applied, or `undefined` when the file is empty or has `undefined` as its default export. Throws when the file does not export a default value. Every call reads the file afresh, because it builds an explorer of its own and so shares no cache.
+ * The evaluated content of the config file at `file` after `extends` is applied with the `layers` of the file's shape, or `undefined` when the file is empty or has `undefined` as its default export. Throws when the file does not export a default value. Every call reads the file afresh, because it builds an explorer of its own and so shares no cache.
  */
-export async function readConfigFile(file: string, options: ConfigFileOptions): Promise<unknown> {
-  const declared = configFileOptions(options);
+export async function readConfigFile(file: string, options: ConfigFileOptions, layers: LayerOptions | undefined): Promise<unknown> {
+  const declared = explorerOptions(options, layers);
   const checked = requireDefaultExport(createJitiLoader(declared).loader);
   const explorer = createExplorer(UNIFIED_BASE, {
     ...declared,
@@ -110,10 +121,10 @@ export async function readConfigFile(file: string, options: ConfigFileOptions): 
 }
 
 /**
- * The evaluated unified config at `file`: a record, or `undefined` when the file is empty. Throws when the file exports something other than an object.
+ * The evaluated unified config at `file`, its layers checked and combined by `layers`: a record, or `undefined` when the file is empty. Throws when the file exports something other than an object.
  */
-export async function readUnifiedFile(file: string, options: ConfigFileOptions): Promise<Readonly<Record<string, unknown>> | undefined> {
-  const config = await readConfigFile(file, options);
+export async function readUnifiedFile(file: string, options: ConfigFileOptions, layers: LayerOptions | undefined): Promise<Readonly<Record<string, unknown>> | undefined> {
+  const config = await readConfigFile(file, options, layers);
   if (config === undefined) {
     return undefined;
   }
