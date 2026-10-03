@@ -1,3 +1,10 @@
+# [2.1.0](https://github.com/ExaDev/config/compare/v2.0.0...v2.1.0) (2026-10-03)
+
+
+### Features
+
+* expose the config file names and lookup a section is read from ([c4c42b3](https://github.com/ExaDev/config/commit/c4c42b346a0791ad1a9c679dc6aa79deffae5b58))
+
 # [2.0.0](https://github.com/ExaDev/config/compare/v1.2.0...v2.0.0) (2026-10-03)
 
 
