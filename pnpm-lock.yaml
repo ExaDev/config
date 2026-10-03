@@ -171,7 +171,7 @@ importers:
         version: 1.1.0
       cosmiconfig-extends:
         specifier: ^1.0.0
-        version: 1.0.0(cosmiconfig@10.0.1)
+        version: 1.1.4(cosmiconfig@10.0.1)
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: 0.18.5
@@ -1716,8 +1716,8 @@ packages:
   core-util-is@1.0.3:
     resolution: {integrity: sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ==}
 
-  cosmiconfig-extends@1.0.0:
-    resolution: {integrity: sha512-vwqRLc9XoQ61TMWO/oGnCj/osbbvIWfYXAlyVMQpBD9/9skbjMbMLFNPE3UiTU1GKz1yJ8brnps10PM2UagS1w==}
+  cosmiconfig-extends@1.1.4:
+    resolution: {integrity: sha512-I3UJxOA05rjw45fwqBvUpyTVNvPM/bhXX8TSYxUZ7PUzHvb0GfaRzCqiyRDnY7sRYeZxCnrXBrbaPiBy+ndXHA==}
     engines: {node: '>=20'}
     peerDependencies:
       cosmiconfig: ^9.0.0 || ^10.0.0
@@ -5137,7 +5137,7 @@ snapshots:
 
   core-util-is@1.0.3: {}
 
-  cosmiconfig-extends@1.0.0(cosmiconfig@10.0.1):
+  cosmiconfig-extends@1.1.4(cosmiconfig@10.0.1):
     dependencies:
       '@standard-schema/spec': 1.1.0
       cosmiconfig: 10.0.1
