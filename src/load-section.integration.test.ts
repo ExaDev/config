@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { ConfigValidationError, type Merge } from 'cosmiconfig-extends';
+import { ConfigValidationError, deepMerge, type Merge } from 'cosmiconfig-extends';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
@@ -33,6 +33,37 @@ const unifiedPreset = z.looseObject({ extends: z.unknown().optional(), toolA: to
  */
 const standalonePreset = toolALayer.extend({ extends: z.unknown().optional() });
 
+function includeOf(layer: Readonly<Record<string, unknown>>): readonly unknown[] {
+  const include = layer['include'];
+
+  return isArray(include) ? include : [];
+}
+
+/**
+ * The merge rule of `toolA`'s own layers: `include` lists form a union, and a later layer replaces every other field. It is written for a section value, so it is the merge of the standalone file, whose layers are section values.
+ */
+const unionSection: Merge = (base, override) => {
+  if (!isRecord(base) || !isRecord(override)) {
+    return override;
+  }
+  const include = [...new Set([...includeOf(base), ...includeOf(override)])];
+
+  return { ...base, ...override, ...(include.length === 0 ? {} : { include }) };
+};
+
+/**
+ * {@link unionSection} lifted to the layers of the unified file, which are whole config files holding `toolA` under its name.
+ */
+const unionUnified: Merge = (base, override) => {
+  if (!isRecord(base) || !isRecord(override)) {
+    return override;
+  }
+  const [earlier, later] = [base['toolA'], override['toolA']];
+  const section = earlier === undefined || later === undefined ? (later ?? earlier) : unionSection(earlier, later);
+
+  return { ...base, ...override, ...(section === undefined ? {} : { toolA: section }) };
+};
+
 function escapeRegExp(text: string): string {
   return text.replaceAll(/[$()*+.?[\\\]^{|}]/g, String.raw`\$&`);
 }
@@ -44,30 +75,30 @@ function unified(section: string = SECTION): string {
 }
 
 describe('loadSection', () => {
-  it('reads a section from the unified file', async () => {
+  it('reads a section from the unified file, and says it was read from there', async () => {
     const cwd = makeProject({ 'exadev.config.ts': unified() });
 
-    expect(await loadSection(toolA, { cwd })).toEqual({ include: ['src'], level: 'low' });
+    expect(await loadSection(toolA, { cwd })).toEqual({ value: { include: ['src'], level: 'low' }, shape: 'unified', file: join(cwd, 'exadev.config.ts') });
   });
 
-  it('reads a section from its standalone file', async () => {
+  it('reads a section from its standalone file, and says it was read from there', async () => {
     const cwd = makeProject({ 'exadev.toolA.config.ts': `export default ${SECTION};\n` });
 
-    expect(await loadSection(toolA, { cwd })).toEqual({ include: ['src'], level: 'low' });
+    expect(await loadSection(toolA, { cwd })).toEqual({ value: { include: ['src'], level: 'low' }, shape: 'standalone', file: join(cwd, 'exadev.toolA.config.ts') });
   });
 
   it('produces the same section from the unified file and from the standalone file', async () => {
     const fromUnified = await loadSection(toolA, { cwd: makeProject({ 'exadev.config.ts': unified("{ include: ['a', 'b'], level: 'high' }") }) });
     const fromStandalone = await loadSection(toolA, { cwd: makeProject({ 'exadev.toolA.config.ts': "export default { include: ['a', 'b'], level: 'high' };\n" }) });
 
-    expect(fromUnified).toEqual({ include: ['a', 'b'], level: 'high' });
-    expect(fromStandalone).toEqual(fromUnified);
+    expect(fromUnified?.value).toEqual({ include: ['a', 'b'], level: 'high' });
+    expect(fromStandalone?.value).toEqual(fromUnified?.value);
   });
 
   it('ignores the sections of other tools in the unified file, and their standalone files', async () => {
     const cwd = makeProject({ 'exadev.config.ts': unified(), 'exadev.other.config.ts': 'export default 1;\n' });
 
-    expect(await loadSection(toolA, { cwd })).toEqual({ include: ['src'], level: 'low' });
+    expect((await loadSection(toolA, { cwd }))?.value).toEqual({ include: ['src'], level: 'low' });
   });
 
   it('fails when the section is defined in both files, naming both', async () => {
@@ -91,7 +122,7 @@ describe('loadSection', () => {
   it('is not a conflict when the unified file defines only other sections', async () => {
     const cwd = makeProject({ 'exadev.config.ts': "export default { other: {} };\n", 'exadev.toolA.config.ts': `export default ${SECTION};\n` });
 
-    expect(await loadSection(toolA, { cwd })).toEqual({ include: ['src'], level: 'low' });
+    expect((await loadSection(toolA, { cwd }))?.value).toEqual({ include: ['src'], level: 'low' });
   });
 
   it('returns undefined when no file defines the section', async () => {
@@ -150,7 +181,7 @@ describe('loadSection', () => {
   it('applies the schema and returns its output, defaults included', async () => {
     const cwd = makeProject({ 'exadev.config.ts': unified() });
 
-    expect(await loadSection(toolA, { cwd })).toHaveProperty('level', 'low');
+    expect((await loadSection(toolA, { cwd }))?.value).toHaveProperty('level', 'low');
   });
 
   describe('file names', () => {
@@ -163,15 +194,19 @@ describe('loadSection', () => {
 
       const both = makeProject({ 'eslint.config.ts': 'export default [{ rules: {} }];\n', 'exadev.config.ts': 'export default { eslint: { strict: true } };\n' });
 
-      expect(await loadSection(eslintSection, { cwd: both })).toEqual({ strict: true });
+      expect((await loadSection(eslintSection, { cwd: both }))?.value).toEqual({ strict: true });
     });
 
     it.each(['.mts', '.cts'])('reads the unified file and a standalone file with the extension %s', async (extension) => {
       const unifiedProject = makeProject({ [`exadev.config${extension}`]: unified() });
       const standaloneProject = makeProject({ [`exadev.toolA.config${extension}`]: `export default ${SECTION};\n` });
 
-      expect(await loadSection(toolA, { cwd: unifiedProject })).toEqual({ include: ['src'], level: 'low' });
-      expect(await loadSection(toolA, { cwd: standaloneProject })).toEqual({ include: ['src'], level: 'low' });
+      expect(await loadSection(toolA, { cwd: unifiedProject })).toEqual({ value: { include: ['src'], level: 'low' }, shape: 'unified', file: join(unifiedProject, `exadev.config${extension}`) });
+      expect(await loadSection(toolA, { cwd: standaloneProject })).toEqual({
+        value: { include: ['src'], level: 'low' },
+        shape: 'standalone',
+        file: join(standaloneProject, `exadev.toolA.config${extension}`),
+      });
     });
 
     it('fails when the unified file exists under two extensions, naming both', async () => {
@@ -233,8 +268,8 @@ describe('loadSection', () => {
       const layout = "{ groups: [{ name: 'core', rank: 0 }], naming: { scope: '@acme' } }";
       const expected = { groups: [{ name: 'core', rank: 0 }], naming: { scope: '@acme' } };
 
-      expect(await loadSection(layoutSection, { cwd: makeProject({ 'exadev.config.ts': `export default { layout: ${layout} };\n` }) })).toEqual(expected);
-      expect(await loadSection(layoutSection, { cwd: makeProject({ 'exadev.layout.config.ts': `export default ${layout};\n` }) })).toEqual(expected);
+      expect((await loadSection(layoutSection, { cwd: makeProject({ 'exadev.config.ts': `export default { layout: ${layout} };\n` }) }))?.value).toEqual(expected);
+      expect((await loadSection(layoutSection, { cwd: makeProject({ 'exadev.layout.config.ts': `export default ${layout};\n` }) }))?.value).toEqual(expected);
     });
   });
 
@@ -245,7 +280,16 @@ describe('loadSection', () => {
         'exadev.config.ts': "export default { extends: './preset.ts', toolA: { include: ['local'] } };\n",
       });
 
-      expect(await loadSection(toolA, { cwd })).toEqual({ include: ['local'], level: 'high' });
+      expect((await loadSection(toolA, { cwd }))?.value).toEqual({ include: ['local'], level: 'high' });
+    });
+
+    it('says a section a preset supplies was read from the unified file that extends it', async () => {
+      const cwd = makeProject({
+        'presets/team.ts': `export default { toolA: ${SECTION} };\n`,
+        'exadev.config.ts': "export default { extends: './presets/team.ts' };\n",
+      });
+
+      expect(await loadSection(toolA, { cwd })).toMatchObject({ shape: 'unified', file: join(cwd, 'exadev.config.ts') });
     });
 
     it('applies extends inside a standalone file', async () => {
@@ -254,7 +298,7 @@ describe('loadSection', () => {
         'exadev.toolA.config.ts': "export default { extends: './base.ts', level: 'low' };\n",
       });
 
-      expect(await loadSection(toolA, { cwd })).toEqual({ include: ['base'], level: 'low' });
+      expect((await loadSection(toolA, { cwd }))?.value).toEqual({ include: ['base'], level: 'low' });
     });
 
     it('refuses a package preset by default and admits it when trust allows it', async () => {
@@ -265,10 +309,34 @@ describe('loadSection', () => {
       };
 
       await expect(loadSection(toolA, { cwd: makeProject(files) })).rejects.toThrow(/refusing to load untrusted preset 'shared'/);
-      expect(await loadSection(toolA, { cwd: makeProject(files), trust: ({ ref }) => ref === 'shared' })).toEqual({ include: ['shared'], level: 'low' });
+      expect((await loadSection(toolA, { cwd: makeProject(files), trust: ({ ref }) => ref === 'shared' }))?.value).toEqual({ include: ['shared'], level: 'low' });
     });
 
-    it('combines layers with the merge it is given', async () => {
+    describe('merge per file shape', () => {
+      const unifiedChain = {
+        'presets/team.ts': "export default { toolA: { include: ['preset'], level: 'high' } };\n",
+        'exadev.config.ts': "export default { extends: './presets/team.ts', toolA: { include: ['local'] } };\n",
+      };
+      const standaloneChain = {
+        'presets/team.ts': "export default { include: ['preset'], level: 'high' };\n",
+        'exadev.toolA.config.ts': "export default { extends: './presets/team.ts', include: ['local'] };\n",
+      };
+      const expected = { include: ['preset', 'local'], level: 'high' };
+
+      it('applies the unified merge to the unified file and the standalone merge to a standalone file', async () => {
+        const options = { unified: { merge: unionUnified }, standalone: { merge: unionSection } };
+
+        expect(await loadSection(toolA, { cwd: makeProject(unifiedChain), ...options })).toMatchObject({ value: expected, shape: 'unified' });
+        expect(await loadSection(toolA, { cwd: makeProject(standaloneChain), ...options })).toMatchObject({ value: expected, shape: 'standalone' });
+      });
+
+      it('leaves the other file shape on the default merge, where a later list replaces an earlier one', async () => {
+        expect((await loadSection(toolA, { cwd: makeProject(standaloneChain), unified: { merge: unionUnified } }))?.value).toEqual({ include: ['local'], level: 'high' });
+        expect((await loadSection(toolA, { cwd: makeProject(unifiedChain), standalone: { merge: unionSection } }))?.value).toEqual({ include: ['local'], level: 'high' });
+      });
+    });
+
+    it('combines the layers of the unified file with the merge it is given', async () => {
       const cwd = makeProject({
         'preset.ts': "export default { toolA: { include: ['preset'] } };\n",
         'exadev.config.ts': "export default { extends: './preset.ts', toolA: { include: ['local'] } };\n",
@@ -286,7 +354,7 @@ describe('loadSection', () => {
         return override ?? base;
       };
 
-      expect(await loadSection(toolA, { cwd, merge })).toEqual({ include: ['preset', 'local'], level: 'low' });
+      expect((await loadSection(toolA, { cwd, unified: { merge } }))?.value).toEqual({ include: ['preset', 'local'], level: 'low' });
     });
 
     it('passes cosmiconfig-extends only the options it declares, so an undeclared one changes nothing', async () => {
@@ -295,28 +363,33 @@ describe('loadSection', () => {
         'exadev.config.ts': "export default { inherits: './preset.ts', toolA: { include: ['local'] } };\n",
       });
       // Not an object literal, so the excess property is not a compile error: the shape a caller reaches with a wider options object.
-      const options = { cwd, extendsKey: 'inherits' };
+      const options = { cwd, extendsKey: 'inherits', unified: { merge: deepMerge, extendsKey: 'inherits' } };
 
-      expect(await loadSection(toolA, options)).toEqual({ include: ['local'], level: 'low' });
+      expect((await loadSection(toolA, options))?.value).toEqual({ include: ['local'], level: 'low' });
     });
 
     it('passes the fsCache it is given to jiti, which writes its transpile cache there', async () => {
       const cwd = makeProject({ 'exadev.config.ts': unified() });
       const fsCache = join(cwd, 'transpile-cache');
 
-      expect(await loadSection(toolA, { cwd, fsCache })).toEqual({ include: ['src'], level: 'low' });
+      expect((await loadSection(toolA, { cwd, fsCache }))?.value).toEqual({ include: ['src'], level: 'low' });
       expect(readdirSync(fsCache)).not.toHaveLength(0);
     });
 
-    describe('presetSchema', () => {
+    describe('presetSchema per file shape', () => {
+      const perShape = { unified: { presetSchema: unifiedPreset }, standalone: { presetSchema: standalonePreset } };
       const invalidPreset = {
         'preset.ts': "export default { toolA: { include: ['preset'], bogus: true } };\n",
         'exadev.config.ts': "export default { extends: './preset.ts', toolA: { level: 'high' } };\n",
       };
+      const invalidStandalonePreset = {
+        'base.ts': "export default { include: ['base'], bogus: true };\n",
+        'exadev.toolA.config.ts': "export default { extends: './base.ts' };\n",
+      };
 
-      it('rejects a preset of the unified file that fails it, naming the preset file as the extends value spells it', async () => {
+      it('rejects a preset of the unified file that fails the unified schema, naming the preset file as the extends value spells it', async () => {
         const cwd = makeProject(invalidPreset);
-        const failure: unknown = await loadSection(toolA, { cwd, presetSchema: unifiedPreset }).catch((error: unknown) => error);
+        const failure: unknown = await loadSection(toolA, { cwd, ...perShape }).catch((error: unknown) => error);
 
         expect(failure).toBeInstanceOf(ConfigValidationError);
         expect(failure).toHaveProperty('message', expect.stringMatching(/^invalid preset '\.\/preset\.ts':\n/));
@@ -330,20 +403,43 @@ describe('loadSection', () => {
           'exadev.config.ts': "export default { extends: './presets/team.ts' };\n",
         });
 
-        await expect(loadSection(toolA, { cwd, presetSchema: unifiedPreset })).rejects.toThrow(/^invalid preset '\.\/base\.ts':\n/);
+        await expect(loadSection(toolA, { cwd, ...perShape })).rejects.toThrow(/^invalid preset '\.\/base\.ts':\n/);
       });
 
-      it('validates the presets of a standalone file, which are section values', async () => {
-        const cwd = makeProject({
-          'base.ts': "export default { include: ['base'], bogus: true };\n",
-          'exadev.toolA.config.ts': "export default { extends: './base.ts' };\n",
-        });
+      it('rejects a preset of a standalone file that fails the standalone schema, naming the preset', async () => {
+        const cwd = makeProject(invalidStandalonePreset);
 
-        const failure: unknown = await loadSection(toolA, { cwd, presetSchema: standalonePreset }).catch((error: unknown) => error);
+        const failure: unknown = await loadSection(toolA, { cwd, ...perShape }).catch((error: unknown) => error);
 
         expect(failure).toBeInstanceOf(ConfigValidationError);
         expect(failure).toHaveProperty('message', expect.stringMatching(/^invalid preset '\.\/base\.ts':\n/));
         expect(failure).toHaveProperty('issues', [{ path: [], message: 'Unrecognized key: "bogus"' }]);
+      });
+
+      it('loads valid preset chains of both shapes, each checked only by the schema of its own shape', async () => {
+        const unifiedProject = makeProject({
+          'preset.ts': "export default { toolA: { include: ['preset'], level: 'high' } };\n",
+          'exadev.config.ts': "export default { extends: './preset.ts', toolA: { include: ['local'] } };\n",
+        });
+        const standaloneProject = makeProject({
+          'base.ts': "export default { include: ['base'], level: 'high' };\n",
+          'exadev.toolA.config.ts': "export default { extends: './base.ts', include: ['local'] };\n",
+        });
+
+        expect((await loadSection(toolA, { cwd: unifiedProject, ...perShape }))?.value).toEqual({ include: ['local'], level: 'high' });
+        expect((await loadSection(toolA, { cwd: standaloneProject, ...perShape }))?.value).toEqual({ include: ['local'], level: 'high' });
+      });
+
+      it('leaves the presets of the other file shape unvalidated', async () => {
+        const standaloneProject = makeProject(invalidStandalonePreset);
+        const unifiedProject = makeProject(invalidPreset);
+
+        await expect(loadSection(toolA, { cwd: standaloneProject, unified: { presetSchema: standalonePreset } })).rejects.toThrow(
+          new RegExp(`^invalid 'toolA' section in ${escapeRegExp(join(standaloneProject, 'exadev.toolA.config.ts'))}:\\n`),
+        );
+        await expect(loadSection(toolA, { cwd: unifiedProject, standalone: { presetSchema: unifiedPreset } })).rejects.toThrow(
+          new RegExp(`^invalid 'toolA' section in ${escapeRegExp(join(unifiedProject, 'exadev.config.ts'))}:\\n`),
+        );
       });
 
       it('merges the output of a preset that passes it in place of the preset', async () => {
@@ -353,13 +449,13 @@ describe('loadSection', () => {
         });
         const lowered = z.looseObject({ extends: z.unknown().optional(), toolA: toolALayer.transform((layer) => ({ ...layer, level: 'low' })).optional() });
 
-        expect(await loadSection(toolA, { cwd, presetSchema: lowered })).toEqual({ include: ['local'], level: 'low' });
+        expect((await loadSection(toolA, { cwd, unified: { presetSchema: lowered } }))?.value).toEqual({ include: ['local'], level: 'low' });
       });
 
       it('does not validate the config file itself, whose section the section schema checks', async () => {
         const cwd = makeProject({ 'exadev.config.ts': unified("{ include: ['src'], bogus: true }") });
 
-        await expect(loadSection(toolA, { cwd, presetSchema: unifiedPreset })).rejects.toThrow(`invalid 'toolA' section in ${join(cwd, 'exadev.config.ts')}:`);
+        await expect(loadSection(toolA, { cwd, ...perShape })).rejects.toThrow(`invalid 'toolA' section in ${join(cwd, 'exadev.config.ts')}:`);
       });
 
       it('leaves presets unvalidated when absent, so a bad preset is reported as the section of the file that extends it', async () => {
@@ -394,18 +490,18 @@ describe('loadSection', () => {
       });
       const options = { cwd, alias: { '@exadev/config': join(cwd, 'shim') } };
 
-      expect(await loadSection(toolA, options)).toEqual({ include: ['src'], level: 'low' });
-      expect(await loadSection(layoutSection, options)).toEqual({ groups: [{ name: 'core' }] });
+      expect((await loadSection(toolA, options))?.value).toEqual({ include: ['src'], level: 'low' });
+      expect((await loadSection(layoutSection, options))?.value).toEqual({ groups: [{ name: 'core' }] });
     });
   });
 
   it('reads the files afresh on every call', async () => {
     const cwd = makeProject({ 'exadev.config.ts': unified("{ include: ['one'] }") });
 
-    expect(await loadSection(toolA, { cwd })).toHaveProperty('include', ['one']);
+    expect((await loadSection(toolA, { cwd }))?.value).toHaveProperty('include', ['one']);
 
     writeProjectFile(cwd, 'exadev.config.ts', unified("{ include: ['two'] }"));
 
-    expect(await loadSection(toolA, { cwd })).toHaveProperty('include', ['two']);
+    expect((await loadSection(toolA, { cwd }))?.value).toHaveProperty('include', ['two']);
   });
 });

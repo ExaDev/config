@@ -1,7 +1,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { assertDirectory, type ConfigFileOptions, findConfigFile, readUnifiedFile, UNIFIED_BASE } from './config-file';
+import { assertDirectory, type ConfigFileOptions, findConfigFile, type LayerOptions, readUnifiedFile, UNIFIED_BASE } from './config-file';
 import { layoutSection } from './layout';
 import { array, type Check, isObject, isString, looseObject, optional, required, validated } from './validation';
 
@@ -60,6 +60,10 @@ export interface DoctorOptions extends ConfigFileOptions {
    * Section names to treat as owned in addition to the built-in `layout` and those declared by installed packages, for a tool that cannot declare them itself.
    */
   readonly listed?: readonly string[];
+  /**
+   * How the layers of the unified file are checked and combined, as for `loadSection`. There is no standalone counterpart, because `doctor` reads only the unified file.
+   */
+  readonly unified?: LayerOptions;
 }
 
 /**
@@ -164,7 +168,7 @@ export async function doctor(options: DoctorOptions): Promise<DoctorReport> {
   if (file === undefined) {
     return { outcome: 'no-config-file', file: undefined, defined: [], unowned: [], known };
   }
-  const config = await readUnifiedFile(file, options);
+  const config = await readUnifiedFile(file, options, options.unified);
   if (config === undefined) {
     return { outcome: 'empty', file: undefined, defined: [], unowned: [], known };
   }

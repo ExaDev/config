@@ -65,24 +65,48 @@ A tool reads its section with `loadSection(section, { cwd })`. `cwd` must be an 
 
 The standalone name is namespaced because the plain `<name>.config.ts` is the native config file of many tools (`eslint.config.ts`, `vitest.config.ts`), so a section called `eslint` would otherwise read the ESLint flat config as its own. Either file may use the extension `.mts` or `.cts` instead of `.ts`; a file that exists under more than one extension throws, since choosing one silently would hide a configuration that never takes effect. Other extensions, and the plain `<name>.config.ts`, are never read.
 
-Both are evaluated with `extends` applied, and both produce the same section for the same content. A section defined in both files (the unified file counts a section a preset supplies) throws an error naming both, since choosing one silently would hide a configuration that never takes effect. When neither file defines it the result is `undefined`.
+Both are evaluated with `extends` applied, and both produce the same section for the same content, given layer options that apply the same rules to each shape (below). A section defined in both files (the unified file counts a section a preset supplies) throws an error naming both, since choosing one silently would hide a configuration that never takes effect.
 
-The result is the schema's output, so defaults the schema applies are included. A section that fails its schema throws `ConfigValidationError`, which this package re-exports along with its `ConfigValidationIssue` type so a caller can catch it by class without depending on cosmiconfig-extends, naming the file, with one normalised `{ path, message }` entry per problem. A unified file that exports anything but an object throws a `TypeError`, and so does any config file with no default export or a `null` one, since a configuration that never takes effect must not read as an absent file. Only an empty file, or one whose default export is `undefined`, is an empty config.
+The result is `undefined` when neither file defines the section, and otherwise a `LoadedSection`:
 
-`loadSection` also takes the options cosmiconfig-extends passes through: `alias` (the directory an authoring import such as `@exadev/config` resolves to, whatever the install layout), `fsCache`, `trust` (which `extends` references may load; local paths only by default), `merge` (how a file and its presets combine; arrays replace by default) and `presetSchema` (a Standard Schema each preset must pass before it is merged; none by default). `doctor` takes the same options. No other cosmiconfig-extends option reaches the loader, even on a wider options object.
+```ts
+interface LoadedSection<Value> {
+  readonly value: Value; // the schema's output, defaults included
+  readonly shape: ConfigFileShape; // 'unified' or 'standalone'
+  readonly file: string; // the absolute path of the file it was read from, with its extension
+}
+```
 
-Without `presetSchema` a preset is only checked as part of the merged section, so an invalid key a preset supplies is reported against the file that extends it. With it, the failing preset throws `ConfigValidationError` with a message beginning `invalid preset '<ref>':`, where `<ref>` is the `extends` value as the file naming the preset wrote it (`./presets/base.ts`, or a package name). `merge` and `presetSchema` see the layers of whichever file is read: for the unified file each preset is a whole config file, so the schema describes a whole file (typically a loose object whose sections are optional layers), and for a standalone file it is a value of that file's section. The schema's output replaces the preset, so it must keep the `extends` key, and it must apply no defaults, since a default would turn "no opinion" into an override. The config file itself is not a preset; its section is checked by the section's own schema.
+`shape` and `file` say where the section lives, so a tool that writes the section back, or reports where a value came from, need not hard-code the two file names and three extensions. For a section that a preset of the unified file supplies, `file` is the unified file, not the preset.
+
+A section that fails its schema throws `ConfigValidationError`, which this package re-exports along with its `ConfigValidationIssue` type so a caller can catch it by class without depending on cosmiconfig-extends, naming the file, with one normalised `{ path, message }` entry per problem. A unified file that exports anything but an object throws a `TypeError`, and so does any config file with no default export or a `null` one, since a configuration that never takes effect must not read as an absent file. Only an empty file, or one whose default export is `undefined`, is an empty config.
+
+`loadSection` also takes the options cosmiconfig-extends passes through for every file: `alias` (the directory an authoring import such as `@exadev/config` resolves to, whatever the install layout), `fsCache` and `trust` (which `extends` references may load; local paths only by default). How a file and its presets are checked and combined depends on the file's shape, so it is given per shape: `unified` applies to the layers of the unified file and `standalone` to the layers of the standalone file, and each is a `LayerOptions` pair of `merge` (how a file and its presets combine; arrays replace by default) and `presetSchema` (a Standard Schema each preset must pass before it is merged; none by default). A shape given no pair uses those defaults. `doctor` takes `alias`, `fsCache`, `trust` and `unified`; it reads only the unified file, so it has no `standalone` pair. No other cosmiconfig-extends option reaches the loader, even on a wider options object.
+
+The two pairs are separate because the two shapes hold different layers. In the unified file each layer is a whole config file, holding the section under its name beside other tools' sections, so the unified `merge` folds whole files and the unified `presetSchema` describes a whole preset file (typically a loose object whose sections are optional layers). In a standalone file each layer is a value of the section itself, with the preset's `extends` key beside its fields, so the standalone `merge` folds section values and the standalone `presetSchema` describes a section layer plus `extends`. A rule written for one shape cannot be applied to the other: the value alone does not say which shape it is, since a misspelt section key looks like another tool's section.
+
+Without a `presetSchema` a preset is only checked as part of the merged section, so an invalid key a preset supplies is reported against the file that extends it. With it, the failing preset throws `ConfigValidationError` with a message beginning `invalid preset '<ref>':`, where `<ref>` is the `extends` value as the file naming the preset wrote it (`./presets/base.ts`, or a package name). The schema's output replaces the preset, so it must keep the `extends` key, and it must apply no defaults, since a default would turn "no opinion" into an override. The config file itself is not a preset; its section is checked by the section's own schema.
 
 ```ts
 import { loadSection } from '@exadev/config';
 import { z } from 'zod';
 
+// mergeMyToolLayers is myTool's own merge rule for its section values, for example that include lists form a union; mergeMyToolFiles applies it to the myTool key of two whole config files. Both are a Merge, (base: unknown, override: unknown) => unknown, a type this package re-exports.
+import { mergeMyToolFiles, mergeMyToolLayers } from './merge';
+
 // A layer of myTool: what a preset may supply, every field optional and no defaults.
 const myToolLayer = z.strictObject({ include: z.array(z.string()).optional(), level: z.enum(['low', 'high']).optional() });
 
-const config = await loadSection(myTool, {
+const loaded = await loadSection(myTool, {
   cwd,
-  presetSchema: z.looseObject({ extends: z.unknown().optional(), myTool: myToolLayer.optional() }),
+  unified: {
+    merge: mergeMyToolFiles,
+    presetSchema: z.looseObject({ extends: z.unknown().optional(), myTool: myToolLayer.optional() }),
+  },
+  standalone: {
+    merge: mergeMyToolLayers,
+    presetSchema: myToolLayer.extend({ extends: z.unknown().optional() }),
+  },
 });
 ```
 
@@ -106,8 +130,8 @@ const schema: z.ZodType<MyToolConfig, MyToolConfig> = z.strictObject({
 
 export const myTool: Section<'myTool', z.ZodType<MyToolConfig, MyToolConfig>> = defineSection('myTool', schema);
 
-export function loadMyToolConfig(cwd: string): Promise<MyToolConfig | undefined> {
-  return loadSection(myTool, { cwd });
+export async function loadMyToolConfig(cwd: string): Promise<MyToolConfig | undefined> {
+  return (await loadSection(myTool, { cwd }))?.value;
 }
 ```
 

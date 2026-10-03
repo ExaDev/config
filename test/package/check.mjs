@@ -1,14 +1,15 @@
 // Runs in a scratch project that has the packed tarball, cosmiconfig and zod installed. It loads sections through the installed package as an ES module.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
 import { ConfigValidationError, defineSection, doctor, layoutSection, loadSection } from '@exadev/config';
 import { z } from 'zod';
 
 const toolA = defineSection('toolA', z.strictObject({ include: z.array(z.string()) }));
 const cwd = process.cwd();
 
-assert.deepEqual(await loadSection(layoutSection, { cwd }), { groups: [{ name: 'core', rank: 0 }] });
-assert.deepEqual(await loadSection(toolA, { cwd }), { include: ['src'] });
+assert.deepEqual(await loadSection(layoutSection, { cwd }), { value: { groups: [{ name: 'core', rank: 0 }] }, shape: 'unified', file: join(cwd, 'exadev.config.ts') });
+assert.deepEqual((await loadSection(toolA, { cwd }))?.value, { include: ['src'] });
 
 const report = await doctor({ cwd, listed: ['toolA'] });
 assert.deepEqual(report.unowned, ['typo']);
