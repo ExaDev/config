@@ -79,6 +79,20 @@ interface LoadedSection<Value> {
 
 `shape` and `file` say where the section lives, so a tool that writes the section back, or reports where a value came from, need not hard-code the two file names and three extensions. For a section that a preset of the unified file supplies, `file` is the unified file, not the preset.
 
+`loadSection` returns `undefined` both when neither file exists and when a file exists but does not define the section. A tool that must tell those apart, for example to name the file when evaluating it fails, can ask which files a section can live in without evaluating any:
+
+```ts
+import { CONFIG_EXTENSIONS, configFileNames, findConfigFiles } from '@exadev/config';
+
+CONFIG_EXTENSIONS; // ['.ts', '.mts', '.cts'], in the order they are looked up
+configFileNames(myTool);
+// { unified: ['exadev.config.ts', 'exadev.config.mts', 'exadev.config.cts'], standalone: ['exadev.myTool.config.ts', 'exadev.myTool.config.mts', 'exadev.myTool.config.cts'] }
+findConfigFiles(myTool, { cwd });
+// { unified: '/path/to/exadev.config.ts', standalone: undefined }
+```
+
+`configFileNames` is pure: it returns the candidate names of each shape relative to the config directory, in extension order, for a caller that checks for files through its own file system. `findConfigFiles` looks in `cwd` itself and returns the absolute path of the file of each shape that exists, or `undefined`, reading neither; like `loadSection`, it throws when `cwd` is not an existing directory or a file exists under more than one extension. Both are built from the same names `loadSection` reads, so they cannot disagree with it.
+
 A section that fails its schema throws `ConfigValidationError`, which this package re-exports along with its `ConfigValidationIssue` type so a caller can catch it by class without depending on cosmiconfig-extends, naming the file, with one normalised `{ path, message }` entry per problem. A unified file that exports anything but an object throws a `TypeError`, and so does any config file with no default export or a `null` one, since a configuration that never takes effect must not read as an absent file. Only an empty file, or one whose default export is `undefined`, is an empty config.
 
 `loadSection` also takes the options cosmiconfig-extends passes through for every file: `alias` (the directory an authoring import such as `@exadev/config` resolves to, whatever the install layout), `fsCache` and `trust` (which `extends` references may load; local paths only by default). How a file and its presets are checked and combined depends on the file's shape, so it is given per shape: `unified` applies to the layers of the unified file and `standalone` to the layers of the standalone file, and each is a `LayerOptions` pair of `merge` (how a file and its presets combine; arrays replace by default) and `presetSchema` (a Standard Schema each preset must pass before it is merged; none by default). A shape given no pair uses those defaults. `doctor` takes `alias`, `fsCache`, `trust` and `unified`; it reads only the unified file, so it has no `standalone` pair. No other cosmiconfig-extends option reaches the loader, even on a wider options object.

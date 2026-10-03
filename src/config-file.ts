@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { Loader } from 'cosmiconfig';
 import { createExplorer, createJitiLoader, type ExplorerOptions } from 'cosmiconfig-extends';
 
+import type { Section } from './section';
 import { isRecord } from './validation';
 
 /**
@@ -12,7 +13,7 @@ import { isRecord } from './validation';
 export const UNIFIED_BASE = 'exadev';
 
 /**
- * The extensions a config file may have: the ones cosmiconfig-extends registers its TypeScript loader for.
+ * The extensions a config file may have, in the order they are looked up: the ones cosmiconfig-extends registers its TypeScript loader for.
  */
 export const CONFIG_EXTENSIONS = ['.ts', '.mts', '.cts'] as const;
 
@@ -50,17 +51,42 @@ export function standaloneBase(name: string): string {
 }
 
 /**
+ * The names `<base>.config.<extension>` a config file with base name `base` may have, one per entry of {@link CONFIG_EXTENSIONS} and in its order.
+ */
+function candidateNames(base: string): readonly string[] {
+  return CONFIG_EXTENSIONS.map((extension) => `${base}.config${extension}`);
+}
+
+/**
  * The config file `<base>.config.<extension>` in `directory`, or `undefined` when there is none. Throws when the file exists under more than one extension, since choosing one silently would hide a configuration that never takes effect.
  */
 export function findConfigFile(directory: string, base: string): string | undefined {
-  const found = CONFIG_EXTENSIONS.map((extension) => join(directory, `${base}.config${extension}`)).filter(
-    (file) => statSync(file, { throwIfNoEntry: false })?.isFile() === true,
-  );
+  const found = candidateNames(base)
+    .map((name) => join(directory, name))
+    .filter((file) => statSync(file, { throwIfNoEntry: false })?.isFile() === true);
   if (found.length > 1) {
     throw new Error(`${base}.config exists under more than one extension (${found.join(', ')}); keep exactly one`);
   }
 
   return found[0];
+}
+
+/**
+ * The names, relative to the directory that holds them, that each shape of config file may have for `section`: `unified` lists `exadev.config.<extension>` and `standalone` lists `exadev.<section.name>.config.<extension>`, each in the order of {@link CONFIG_EXTENSIONS}. These are exactly the files `loadSection` reads the section from, so a caller that checks for files through its own file system can tell a directory with no config file from a file that does not define the section. It reads nothing.
+ */
+export function configFileNames(section: Pick<Section, 'name'>): Readonly<Record<ConfigFileShape, readonly string[]>> {
+  return { unified: candidateNames(UNIFIED_BASE), standalone: candidateNames(standaloneBase(section.name)) };
+}
+
+/**
+ * The config file of each shape for `section` that exists in `cwd`, as an absolute path with whichever of {@link CONFIG_EXTENSIONS} it has, or `undefined` for a shape with no file. The files are the ones `loadSection` reads, found the same way, but not evaluated, so a file is found whether or not it defines the section. Neither is searched for in a parent directory.
+ *
+ * Throws when `cwd` is not an existing directory, and when a file exists under more than one extension, as `loadSection` does.
+ */
+export function findConfigFiles(section: Pick<Section, 'name'>, options: { readonly cwd: string }): Readonly<Record<ConfigFileShape, string | undefined>> {
+  assertDirectory(options.cwd);
+
+  return { unified: findConfigFile(options.cwd, UNIFIED_BASE), standalone: findConfigFile(options.cwd, standaloneBase(section.name)) };
 }
 
 /**

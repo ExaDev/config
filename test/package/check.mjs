@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { ConfigValidationError, defineSection, doctor, layoutSection, loadSection } from '@exadev/config';
+import { CONFIG_EXTENSIONS, ConfigValidationError, configFileNames, defineSection, doctor, findConfigFiles, layoutSection, loadSection } from '@exadev/config';
 import { z } from 'zod';
 
 const toolA = defineSection('toolA', z.strictObject({ include: z.array(z.string()) }));
@@ -10,6 +10,9 @@ const cwd = process.cwd();
 
 assert.deepEqual(await loadSection(layoutSection, { cwd }), { value: { groups: [{ name: 'core', rank: 0 }] }, shape: 'unified', file: join(cwd, 'exadev.config.ts') });
 assert.deepEqual((await loadSection(toolA, { cwd }))?.value, { include: ['src'] });
+assert.deepEqual(CONFIG_EXTENSIONS, ['.ts', '.mts', '.cts']);
+assert.deepEqual(configFileNames(toolA).standalone, ['exadev.toolA.config.ts', 'exadev.toolA.config.mts', 'exadev.toolA.config.cts']);
+assert.deepEqual(findConfigFiles(toolA, { cwd }), { unified: join(cwd, 'exadev.config.ts'), standalone: undefined });
 
 const report = await doctor({ cwd, listed: ['toolA'] });
 assert.deepEqual(report.unowned, ['typo']);

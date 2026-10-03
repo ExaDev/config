@@ -1,5 +1,5 @@
 export { ConfigValidationError, type ConfigValidationIssue, type Merge } from 'cosmiconfig-extends';
-export type { ConfigFileOptions, ConfigFileShape, LayerOptions } from './config-file';
+export { CONFIG_EXTENSIONS, configFileNames, type ConfigFileOptions, type ConfigFileShape, findConfigFiles, type LayerOptions } from './config-file';
 export { type CheckedDoctorReport, doctor, type DoctorOptions, type DoctorReport, MANIFEST_FIELD, type UncheckedDoctorReport } from './doctor';
 export {
   type GroupSpec,
