@@ -217,6 +217,8 @@ CI also runs `pnpm exec publint` and `pnpm exec attw --pack` after the build, an
 
 The authoring type checks are tests: `test/types/authoring-types.integration.test.ts` compiles the files in `test/types/fixtures/cases` with the TypeScript compiler API and asserts the exact errors each one produces, so a change that loosens the types fails a test instead of passing silently.
 
+CI also lints the workflows themselves with [actionlint](https://github.com/rhysd/actionlint) (and the shellcheck it runs on every `run:` script) and [zizmor](https://docs.zizmor.sh), each at a pinned version and configured in `.github/actionlint.yaml` and `.github/zizmor.yml`; both are part of the Required Checks status.
+
 CI selects its runner with `ExaDev/runner-fallback-action` (self-hosted fleet first, Blacksmith as fallback). The release job is the exception: it runs on a GitHub-hosted runner, as described under Releases.
 
 Commits follow [Conventional Commits](https://www.conventionalcommits.org); semantic-release derives the version from them.
