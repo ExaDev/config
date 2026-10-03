@@ -1,3 +1,18 @@
+# [2.0.0](https://github.com/ExaDev/config/compare/v1.2.0...v2.0.0) (2026-10-03)
+
+
+* feat(load-section)!: take merge and presetSchema per file shape, and report the file read ([0a74f61](https://github.com/ExaDev/config/commit/0a74f619f07c84bab03914df290cfcac94c2c013)), closes [#8](https://github.com/ExaDev/config/issues/8)
+
+
+### BREAKING CHANGES
+
+* merge and presetSchema are no longer top-level options
+of loadSection, doctor or ConfigFileOptions.
+Pass them as unified: { merge, presetSchema } for whole config files,
+or standalone: { merge, presetSchema } for section values.
+loadSection resolves to { value, shape, file } instead of the value;
+read .value.
+
 # [1.2.0](https://github.com/ExaDev/config/compare/v1.1.3...v1.2.0) (2026-10-02)
 
 
