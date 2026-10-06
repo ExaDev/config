@@ -171,7 +171,7 @@ importers:
         version: 1.1.0
       cosmiconfig-extends:
         specifier: ^1.0.0
-        version: 1.0.0(cosmiconfig@10.0.1)
+        version: 1.1.5(cosmiconfig@10.0.1)
     devDependencies:
       '@arethetypeswrong/cli':
         specifier: 0.18.5
@@ -189,8 +189,8 @@ importers:
         specifier: 10.0.1
         version: 10.0.1(eslint@10.11.0(jiti@2.7.0)(supports-color@7.2.0))
       '@exadev/eslint-config':
-        specifier: 2.23.0
-        version: 2.23.0(@eslint/json@2.1.0)(eslint@10.11.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript-eslint@8.71.0(eslint@10.11.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@6.0.3))(typescript@6.0.3)
+        specifier: 2.23.1
+        version: 2.23.1(@eslint/json@2.1.0)(eslint@10.11.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript-eslint@8.71.0(eslint@10.11.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@6.0.3))(typescript@6.0.3)
       '@semantic-release/changelog':
         specifier: 7.0.0
         version: 7.0.0(semantic-release@25.0.9(supports-color@7.2.0)(typescript@6.0.3))
@@ -634,10 +634,11 @@ packages:
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  '@exadev/eslint-config@2.23.0':
-    resolution: {integrity: sha512-xcqNc3RakQj8aPIfxff+6Hp6JkXw1HkDQuWE5brEUBYncEUJkqP2Bg5kYl2SPJwSlAXCyuV7zFPOIsVNfYoxyw==}
+  '@exadev/eslint-config@2.23.1':
+    resolution: {integrity: sha512-8f0DrqVDZcQu52QI2RZ/nCEzVaShcMsN2hsWhkmQhMlyUoMEq3l74iSGBtb19rd8jfsLDbJ4hJ0LKvW5Z6Wiqw==}
     engines: {node: '>=20'}
     peerDependencies:
+      '@eslint/json': ^2.1.0
       '@next/eslint-plugin-next': ^16.3.2
       eslint: '>=10.0.0'
       eslint-plugin-jsx-a11y: ^6.10.2
@@ -646,6 +647,8 @@ packages:
       typescript: '>=4.8.4'
       typescript-eslint: '>=8.0.0'
     peerDependenciesMeta:
+      '@eslint/json':
+        optional: true
       '@next/eslint-plugin-next':
         optional: true
       eslint-plugin-jsx-a11y:
@@ -1716,8 +1719,8 @@ packages:
   core-util-is@1.0.3:
     resolution: {integrity: sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ==}
 
-  cosmiconfig-extends@1.0.0:
-    resolution: {integrity: sha512-vwqRLc9XoQ61TMWO/oGnCj/osbbvIWfYXAlyVMQpBD9/9skbjMbMLFNPE3UiTU1GKz1yJ8brnps10PM2UagS1w==}
+  cosmiconfig-extends@1.1.5:
+    resolution: {integrity: sha512-rywlK26PkOizGrTReJ0t7smxMRLMZVLy0rhu8hquidF34AsstWGw9oofocwoJEgtDC+0TGdT+fUug2t+im+wQw==}
     engines: {node: '>=20'}
     peerDependencies:
       cosmiconfig: ^9.0.0 || ^10.0.0
@@ -4028,7 +4031,7 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@exadev/eslint-config@2.23.0(@eslint/json@2.1.0)(eslint@10.11.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript-eslint@8.71.0(eslint@10.11.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@6.0.3))(typescript@6.0.3)':
+  '@exadev/eslint-config@2.23.1(@eslint/json@2.1.0)(eslint@10.11.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript-eslint@8.71.0(eslint@10.11.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@6.0.3))(typescript@6.0.3)':
     dependencies:
       '@eslint/js': 10.0.1(eslint@10.11.0(jiti@2.7.0)(supports-color@7.2.0))
       '@microsoft/tsdoc': 0.17.0
@@ -4041,8 +4044,9 @@ snapshots:
       ts-api-utils: 2.5.0(typescript@6.0.3)
       typescript: 6.0.3
       typescript-eslint: 8.71.0(eslint@10.11.0(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@6.0.3)
+    optionalDependencies:
+      '@eslint/json': 2.1.0
     transitivePeerDependencies:
-      - '@eslint/json'
       - supports-color
 
   '@humanfs/core@0.19.2':
@@ -4601,8 +4605,8 @@ snapshots:
 
   '@typescript-eslint/project-service@8.56.1(supports-color@7.2.0)(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.56.1(typescript@6.0.3)
-      '@typescript-eslint/types': 8.56.1
+      '@typescript-eslint/tsconfig-utils': 8.71.0(typescript@6.0.3)
+      '@typescript-eslint/types': 8.71.0
       debug: 4.4.3(supports-color@7.2.0)
       typescript: 6.0.3
     transitivePeerDependencies:
@@ -4610,8 +4614,8 @@ snapshots:
 
   '@typescript-eslint/project-service@8.67.0(supports-color@7.2.0)(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.67.0(typescript@6.0.3)
-      '@typescript-eslint/types': 8.67.0
+      '@typescript-eslint/tsconfig-utils': 8.71.0(typescript@6.0.3)
+      '@typescript-eslint/types': 8.71.0
       debug: 4.4.3(supports-color@7.2.0)
       typescript: 6.0.3
     transitivePeerDependencies:
@@ -5137,7 +5141,7 @@ snapshots:
 
   core-util-is@1.0.3: {}
 
-  cosmiconfig-extends@1.0.0(cosmiconfig@10.0.1):
+  cosmiconfig-extends@1.1.5(cosmiconfig@10.0.1):
     dependencies:
       '@standard-schema/spec': 1.1.0
       cosmiconfig: 10.0.1
