@@ -1,3 +1,13 @@
+## [2.1.3](https://github.com/ExaDev/config/compare/v2.1.2...v2.1.3) (2026-10-29)
+
+### Bug Fixes
+
+* list every commit type in the release notes ([5d0b1ae](https://github.com/ExaDev/config/commit/5d0b1ae81deb7a2cafbeecc1a87d3aef0752756b))
+
+### Documentation
+
+* list the commits behind each release that had an empty changelog entry ([d7c4795](https://github.com/ExaDev/config/commit/d7c47955bd90d7104360167c5753852c47f0e8a2))
+
 ## [2.1.2](https://github.com/ExaDev/config/compare/v2.1.1...v2.1.2) (2026-10-03)
 
 ### Continuous Integration
