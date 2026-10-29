@@ -1,5 +1,7 @@
 # @exadev/config
 
+[![GitHub](https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white)](https://github.com/ExaDev/config) [![npm](https://img.shields.io/badge/npm-CB3837?logo=npm&logoColor=white)](https://www.npmjs.com/package/@exadev/config) [![Release](https://img.shields.io/github/v/release/ExaDev/config)](https://github.com/ExaDev/config/releases/latest) [![CI](https://img.shields.io/github/actions/workflow/status/ExaDev/config/ci.yml?branch=main)](https://github.com/ExaDev/config/actions)
+
 The unified `exadev.config.ts`. Each ExaDev tool contributes a typed, schema-validated section to one config file, or reads the same section from a standalone `exadev.<tool>.config.ts`, and this package imports no tool to make that work. It builds on [cosmiconfig-extends](https://github.com/ExaDev/cosmiconfig-extends), so a config file is TypeScript evaluated through jiti and can `extends` presets, under that package's trust policy.
 
 ## Getting started
