@@ -4,3 +4,8 @@ packages: []
 minimumReleaseAgeExclude:
   - cosmiconfig-extends
 saveExact: true
+# @semantic-release/release-notes-generator tries to load its preset from its own location before the project's, and pnpm's private hoisting there offers only the newest conventional-changelog-conventionalcommits in the tree, 10.x (through @commitlint/config-conventional), whose writer 9 requirement the generator's writer 8 cannot meet. Declaring the 9.x preset as the generator's own dependency puts it next to the generator, so it is found first. The same version is pinned as a direct devDependency in package.json; keep the two in step.
+packageExtensions:
+  '@semantic-release/release-notes-generator':
+    dependencies:
+      conventional-changelog-conventionalcommits: 9.3.1
