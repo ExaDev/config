@@ -1,3 +1,9 @@
+## [2.1.4](https://github.com/ExaDev/config/compare/v2.1.3...v2.1.4) (2026-10-29)
+
+### Documentation
+
+* add the standard badge row to the README ([1b63ff2](https://github.com/ExaDev/config/commit/1b63ff21e14430611f02ea3cfe1f0c07ba671783))
+
 ## [2.1.3](https://github.com/ExaDev/config/compare/v2.1.2...v2.1.3) (2026-10-29)
 
 ### Bug Fixes
