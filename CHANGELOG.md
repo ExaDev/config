@@ -1,6 +1,16 @@
 ## [2.1.2](https://github.com/ExaDev/config/compare/v2.1.1...v2.1.2) (2026-10-03)
 
+### Continuous Integration
+
+* let Dependabot propose npm updates after a week's cooldown ([05e216c](https://github.com/ExaDev/config/commit/05e216cc917e525cc94dc42f925531f8f5ebae6e))
+* lint workflows with actionlint and zizmor ([47c6808](https://github.com/ExaDev/config/commit/47c68087986ae8bea7cc01d4047e1b48ae9108cd))
+* stop persisting checkout credentials and expanding needs into shell ([eb61ba3](https://github.com/ExaDev/config/commit/eb61ba34823dca1856c39d5a9cf6b4c9171b7084))
+
 ## [2.1.1](https://github.com/ExaDev/config/compare/v2.1.0...v2.1.1) (2026-10-03)
+
+### Continuous Integration
+
+* pin third-party actions by commit SHA ([a23bf3d](https://github.com/ExaDev/config/commit/a23bf3de88b9656077f5bf1e8a5e6c47d48cd490))
 
 # [2.1.0](https://github.com/ExaDev/config/compare/v2.0.0...v2.1.0) (2026-10-03)
 
@@ -38,9 +48,32 @@ read .value.
 
 ## [1.1.3](https://github.com/ExaDev/config/compare/v1.1.2...v1.1.3) (2026-10-02)
 
+### Documentation
+
+* describe the release process in a Releases section ([5dd9529](https://github.com/ExaDev/config/commit/5dd95291ac1504ed896134d4922d669c5cacbe33))
+
 ## [1.1.2](https://github.com/ExaDev/config/compare/v1.1.1...v1.1.2) (2026-10-02)
 
+### Documentation
+
+* say the release key is also set for the provisioning step ([4d863a9](https://github.com/ExaDev/config/commit/4d863a98e9c1aed6cbe26a5d281c141d0950bf39))
+
+### Continuous Integration
+
+* pin release job actions to commit SHAs and state the remaining key exposure ([a0c4205](https://github.com/ExaDev/config/commit/a0c4205c010c51af90d5001cf15a92631bfc382b))
+* provision the release deploy key only for the semantic-release step ([973d965](https://github.com/ExaDev/config/commit/973d9659880953b6990dcde8f7eea3b894d75113))
+* verify deploy key write access with semantic-release's own dry-run push ([b0bcec1](https://github.com/ExaDev/config/commit/b0bcec171614e0e41550cca2ca74d187af510e32))
+
 ## [1.1.1](https://github.com/ExaDev/config/compare/v1.1.0...v1.1.1) (2026-10-02)
+
+### Documentation
+
+* describe the semantic-release https fallback accurately in release.config.ts ([0b69b26](https://github.com/ExaDev/config/commit/0b69b26ea3eb661011cd39abddcc35e25579fb2e))
+* mark the release checkout comment as describing the ruleset's target state ([848404f](https://github.com/ExaDev/config/commit/848404fd0882d2af2e4d6ca1213a979735264285))
+
+### Continuous Integration
+
+* push the release over SSH with a deploy key ([fae11f1](https://github.com/ExaDev/config/commit/fae11f14196269f75ad4176c709c0aab5db4f3a5))
 
 # [1.1.0](https://github.com/ExaDev/config/compare/v1.0.0...v1.1.0) (2026-09-30)
 
